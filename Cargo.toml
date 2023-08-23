@@ -2,6 +2,7 @@
 name = "wetware"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 license-file = "LICENSE"
 description = "Tool to manage personal, networked thoughts and facts about subjects and topics."
 homepage = "https://github.com/petr-muller/wetware"
