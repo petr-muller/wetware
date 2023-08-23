@@ -3,4 +3,13 @@ name = "wetware"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "wet"
+path = "src/main.rs"
+
 [dependencies]
+clap = { version = "4.3.24", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2.0.12"
+predicates = "3.0.3"
