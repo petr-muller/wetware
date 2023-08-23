@@ -17,4 +17,3 @@ jobs:
         with:
           release-type: rust
           package-name: release-please-action
-          release-as: "0.1.2"
