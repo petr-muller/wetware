@@ -29,7 +29,6 @@ mod integration {
     #[test]
     fn add_stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        println!("{}", db.path().display());
         let mut cmd = Command::cargo_bin("wet")?;
         cmd.env("WETWARE_DB_PATH", db.path())
             .arg("add")
