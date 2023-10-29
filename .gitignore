@@ -13,3 +13,6 @@ target/
 # Added by cargo
 
 /target
+
+# Ad-hoc SQlite files
+*.db
