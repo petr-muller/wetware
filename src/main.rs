@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
 use rusqlite::params;
+use lazy_static::lazy_static;
+use regex::Regex;
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
@@ -20,7 +22,7 @@ enum Commands {
         /// The thought to add
         thought: String,
         #[arg(short, long)]
-        datetime: Option<DateTime<Utc>>
+        datetime: Option<DateTime<Utc>>,
     },
 }
 
@@ -41,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match args.command {
-        Commands::Add { thought, datetime} => {
+        Commands::Add { thought, datetime } => {
             let conn = rusqlite::Connection::open(db).unwrap();
 
             conn.execute(
@@ -53,12 +55,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (),
             )?;
 
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS entities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEST NOT NULL UNIQUE
+                    )",
+                (),
+            )?;
+
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS thoughts_entities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thought_id INTEGER,
+                    entity_id INTEGER,
+                    FOREIGN KEY(thought_id) REFERENCES thoughts(id),
+                    FOREIGN KEY(entity_id) REFERENCES entities(id),
+                    UNIQUE(thought_id, entity_id)
+                    )",
+                (),
+            )?;
+
             let now = datetime.unwrap_or_else(chrono::offset::Utc::now);
 
             conn.execute(
                 "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
                 params![&thought, &now],
             )?;
+            let thought_id = conn.last_insert_rowid();
+
+            lazy_static! {
+                static ref ENTITY_RE: Regex = Regex::new(r"\[[^\[]+\]").unwrap();
+            }
+            let entities: Vec<&str> = ENTITY_RE.find_iter(&thought)
+                .map(|entity| entity.as_str())
+                .collect();
+
+            for entity in entities {
+                let entity_name = &entity[1..entity.len() - 1];
+                conn.execute(
+                    "INSERT INTO entities (name) VALUES (?1)
+                    ON CONFLICT(name) DO NOTHING",
+                    params![entity_name],
+                )?;
+                let mut stmt = conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+                let mut rows = stmt.query_map(params![entity_name], |row| row.get::<usize, usize>(0))?;
+                let entity_id = rows.next().unwrap().unwrap();
+                conn.execute(
+                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
+                    params![thought_id, entity_id]
+                )?;
+            }
         }
     }
     Ok(())
