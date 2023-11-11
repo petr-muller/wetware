@@ -775,7 +775,9 @@ dependencies = [
  "assert_fs",
  "chrono",
  "clap",
+ "lazy_static",
  "predicates",
+ "regex",
  "rusqlite",
 ]
 
