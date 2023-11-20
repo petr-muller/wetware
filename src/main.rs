@@ -24,6 +24,8 @@ enum Commands {
         #[arg(short, long)]
         datetime: Option<DateTime<Utc>>,
     },
+    #[command(name = "thoughts")]
+    Thoughts {},
 }
 
 
@@ -43,6 +45,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match args.command {
+        Commands::Thoughts {} => {
+            let conn = rusqlite::Connection::open(db).unwrap();
+            let mut stmt = conn.prepare("SELECT thought FROM thoughts ORDER BY datetime")?;
+            let rows = stmt.query_map([], |row| row.get::<usize, String>(0))?;
+            for thought in rows {
+                println!("{}", thought.unwrap());
+            }
+        }
         Commands::Add { thought, datetime } => {
             let conn = rusqlite::Connection::open(db).unwrap();
 
