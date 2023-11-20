@@ -184,6 +184,51 @@ mod integration {
 
         Ok(())
     }
-    //TODO(muller): Adding two thoughts with single entity creates just one entity row
+
+    #[test]
+    fn add_two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let db = assert_fs::NamedTempFile::new("wetware.db")?;
+        let mut cmd = Command::cargo_bin("wet")?;
+        cmd.env("WETWARE_DB_PATH", db.path())
+            .arg("add")
+            .arg("This is a thought about [subject]")
+            .assert()
+            .success();
+        let mut cmd = Command::cargo_bin("wet")?;
+        cmd.env("WETWARE_DB_PATH", db.path())
+            .arg("add")
+            .arg("This is another thought about [subject]")
+            .assert()
+            .success();
+        let conn = Connection::open(db.path())?;
+        let mut stmt = conn.prepare("SELECT name FROM entities")?;
+
+        let rows = stmt.query_map([], |row| row.get::<usize, String>(0))?;
+
+        let mut entities = Vec::new();
+        for entity in rows {
+            entities.push(entity)
+        }
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].as_ref().unwrap(), "subject");
+
+        struct ManyToManyItem {
+            _left: isize,
+            _right: isize,
+        }
+
+        let mut stmt = conn.prepare("SELECT thought_id, entity_id FROM thoughts_entities")?;
+        let rows = stmt.query_map([], |row| Ok(ManyToManyItem {
+            _left: row.get(0)?,
+            _right: row.get(1)?,
+        }))?;
+        let mut links = Vec::new();
+        for link in rows {
+            links.push(link)
+        }
+        assert_eq!(links.len(), 2);
+
+        Ok(())
+    }
 }
 
