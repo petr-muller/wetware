@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
-use rusqlite::params;
+use rusqlite::{params, params_from_iter};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -25,7 +25,10 @@ enum Commands {
         datetime: Option<DateTime<Utc>>,
     },
     #[command(name = "thoughts")]
-    Thoughts {},
+    Thoughts {
+        #[arg(long="on")]
+        entity: Option<String>,
+    },
 }
 
 
@@ -45,10 +48,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match args.command {
-        Commands::Thoughts {} => {
+        Commands::Thoughts { entity } => {
             let conn = rusqlite::Connection::open(db).unwrap();
-            let mut stmt = conn.prepare("SELECT thought FROM thoughts ORDER BY datetime")?;
-            let rows = stmt.query_map([], |row| row.get::<usize, String>(0))?;
+
+            let mut stmt_lines = vec!["SELECT thought FROM thoughts"];
+            let mut params = vec![];
+            if let Some(entity) = entity {
+                stmt_lines.append(&mut vec![
+                    "JOIN thoughts_entities ON thoughts.id = thoughts_entities.thought_id",
+                    "JOIN entities ON thoughts_entities.entity_id = entities.id",
+                    "WHERE entities.name = ?1"]);
+                params.push(entity)
+            }
+            stmt_lines.push("ORDER BY datetime");
+            let mut stmt = conn.prepare(stmt_lines.join("\n").as_str())?;
+
+            let rows = stmt.query_map(params_from_iter(params), |row| row.get::<usize, String>(0))?;
             for thought in rows {
                 println!("{}", thought.unwrap());
             }
@@ -112,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let entity_id = rows.next().unwrap().unwrap();
                 conn.execute(
                     "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
-                    params![thought_id, entity_id]
+                    params![thought_id, entity_id],
                 )?;
             }
         }
