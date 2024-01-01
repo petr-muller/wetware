@@ -16,7 +16,7 @@ pub struct Wet {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Add a new thought to the database
+    /// Add a new thought
     #[command(name = "add", arg_required_else_help = true)]
     Add {
         /// The thought to add
@@ -24,6 +24,7 @@ enum Commands {
         #[arg(short, long)]
         datetime: Option<DateTime<Utc>>,
     },
+    /// List thoughts
     #[command(name = "thoughts")]
     Thoughts {
         #[arg(long="on")]
