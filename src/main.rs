@@ -333,9 +333,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for token in lex {
                 match token.value {
                     TokenValue::Error => {
-                        println!("Error adding thought: {}", thought);
-                        println!("                      {}^", " ".repeat(token.position));
-                        Err(format!("bad token at position {}", token.position))?;
+                        eprintln!("Error adding thought: {}", thought);
+                        eprintln!("                      {}^ invalid token at position {}", " ".repeat(token.position), token.position);
+                        std::process::exit(1);
                     }
                     TokenValue::EntityReference(entity) => {
                         entities.push(entity)
