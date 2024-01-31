@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms)]
+
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
 use rusqlite::{params, params_from_iter};
@@ -5,7 +7,7 @@ use crate::thoughts::thought_lexer::{ThoughtLexer, TokenValue};
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
-pub struct Wet {
+struct Wet {
     #[clap(flatten)]
     globals: GlobalFlags,
 
@@ -39,7 +41,7 @@ struct GlobalFlags {
     db: Option<String>,
 }
 
-pub mod thoughts {
+mod thoughts {
     // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
     //               https://eli.thegreenplace.net/2022/rewriting-the-lexer-benchmark-in-rust/
     //               Eventually I may want to use [Logos](https://github.com/maciejhirsz/logos)
@@ -69,7 +71,7 @@ pub mod thoughts {
             c: char,
             // ci is the offset of c in the input
             ci: usize,
-            // error is true iff lexer encoutered an error
+            // error is true iff lexer encountered an error
             error: bool,
         }
 
@@ -171,7 +173,7 @@ pub mod thoughts {
             fn next(&mut self) -> Option<Self::Item> {
                 if self.error {
                     // If an error was already been set before we invoke next_token, it means we have already returned
-                    // TokenValue::Error once an now we should terminate the iteration.
+                    // TokenValue::Error once, and now we should terminate the iteration.
                     return None;
                 }
 
@@ -182,11 +184,6 @@ pub mod thoughts {
                     Some(token)
                 }
             }
-        }
-
-        pub fn tokenize(input: &str) -> Vec<Token> {
-            let lex = ThoughtLexer::new(input);
-            lex.collect()
         }
     }
 
