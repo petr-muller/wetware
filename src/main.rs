@@ -2,8 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
-use rusqlite::{params};
-use crate::thoughts::lexer::{ThoughtLexer, TokenValue};
+use crate::thoughts::Thought;
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
@@ -42,10 +41,13 @@ struct GlobalFlags {
 }
 
 mod thoughts {
+    use chrono::{DateTime, Utc};
+    use crate::thoughts::lexer::{ThoughtLexer, TokenValue};
+
     // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
     //               https://eli.thegreenplace.net/2022/rewriting-the-lexer-benchmark-in-rust/
     //               Eventually I may want to use [Logos](https://github.com/maciejhirsz/logos)
-    pub mod lexer {
+    mod lexer {
         #[derive(Debug, PartialEq)]
         pub enum TokenValue<'source> {
             EOF,
@@ -187,25 +189,8 @@ mod thoughts {
         }
     }
 
-    #[derive(Debug)]
-    pub struct Thought {
-        raw: String,
-    }
-
-    impl Thought {
-        pub fn from_raw(raw: String) -> Self {
-            Thought { raw }
-        }
-    }
-
-    impl std::fmt::Display for Thought {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "{}", self.raw)
-        }
-    }
-
     #[cfg(test)]
-    mod tests {
+    mod lexer_tests {
         use crate::thoughts::lexer::{ThoughtLexer, Token, TokenValue};
         // Assert that 'token' has a certain value and optionally a position
         macro_rules! assert_token {
@@ -277,12 +262,205 @@ mod thoughts {
             assert_token!(tokens[1], TokenValue::Error, 9);
         }
     }
+
+    #[derive(Debug, Clone)]
+    pub struct ThoughtError {
+        pub message: String,
+    }
+
+    impl std::fmt::Display for ThoughtError {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "SQLite store error: {}", self.message)
+        }
+    }
+
+    impl std::error::Error for ThoughtError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
+    }
+
+    type Result<T> = std::result::Result<T, ThoughtError>;
+
+    #[derive(Debug, PartialEq)]
+    pub struct RawThought {
+        raw: String,
+        added: DateTime<Utc>,
+    }
+
+    impl RawThought {
+        fn as_thought(&self) -> Result<Thought> {
+            let lex = ThoughtLexer::new(self.raw.as_str());
+            let mut entities: Vec<Entity> = vec![];
+            for token in lex {
+                match token.value {
+                    TokenValue::Error => {
+                        return Err(ThoughtError { message: format!("invalid token at position {}", token.position) });
+                    }
+                    TokenValue::EntityReference(entity) => {
+                        let entity_name = &entity[1..entity.len() - 1];
+                        entities.push(Entity::from_raw(entity_name.to_string()))
+                    }
+                    _ => {}
+                }
+            }
+            let thought = Thought {
+                raw: self.raw.to_string(),
+                added: self.added,
+                entities,
+            };
+            Ok(thought)
+        }
+    }
+
+    #[cfg(test)]
+    mod raw_thought_tests {
+        use crate::thoughts::{Entity, RawThought, Thought, ThoughtError};
+
+        #[test]
+        fn as_thought_simple() -> Result<(), ThoughtError> {
+            let added = chrono::offset::Utc::now();
+            let raw = RawThought {
+                raw: "This is a thought".to_string(),
+                added,
+            };
+            let thought = raw.as_thought()?;
+            assert_eq!(
+                Thought {
+                    raw: "This is a thought".to_string(),
+                    entities: vec![],
+                    added,
+                },
+                thought);
+            Ok(())
+        }
+
+        #[test]
+        fn as_thought_with_entities() -> Result<(), ThoughtError> {
+            let added = chrono::offset::Utc::now();
+            let raw = RawThought {
+                raw: "This is a [thought] with [entity] about [thought]".to_string(),
+                added,
+            };
+            let thought = raw.as_thought()?;
+            assert_eq!(
+                Thought {
+                    raw: "This is a [thought] with [entity] about [thought]".to_string(),
+                    entities: vec![
+                        Entity { raw: "thought".to_string() },
+                        Entity { raw: "entity".to_string() },
+                        Entity { raw: "thought".to_string() },
+                    ],
+                    added,
+                },
+                thought);
+            Ok(())
+        }
+    }
+
+
+    #[derive(Debug, PartialEq)]
+    pub struct Thought {
+        pub raw: String,
+        pub entities: Vec<Entity>,
+        pub added: DateTime<Utc>,
+    }
+
+    impl Thought {
+        pub fn from_input(raw: String, added: DateTime<Utc>) -> Result<Self> {
+            let raw_thought = RawThought { raw, added };
+            let thought = raw_thought.as_thought()?;
+
+            Ok(thought)
+        }
+
+        pub fn from_store(raw: String, added: DateTime<Utc>) -> RawThought {
+            RawThought { raw, added }
+        }
+    }
+
+    #[cfg(test)]
+    mod thought_tests {
+        use crate::thoughts::{Entity, RawThought, Thought, ThoughtError};
+
+        #[test]
+        fn from_input_simple() -> Result<(), ThoughtError> {
+            let added = chrono::offset::Utc::now();
+            let thought = Thought::from_input("This is a thought".to_string(), added)?;
+
+            assert_eq!(
+                Thought { raw: "This is a thought".to_string(), entities: vec![], added },
+                thought
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn from_input_with_entities() -> Result<(), ThoughtError> {
+            let added = chrono::offset::Utc::now();
+            let thought = Thought::from_input("This is a [thought] with [entity] about [thought]".to_string(), added)?;
+
+            assert_eq!(
+                Thought {
+                    raw: "This is a [thought] with [entity] about [thought]".to_string(),
+                    entities: vec![
+                        Entity { raw: "thought".to_string() },
+                        Entity { raw: "entity".to_string() },
+                        Entity { raw: "thought".to_string() },
+                    ],
+                    added,
+                },
+                thought);
+            Ok(())
+        }
+
+        #[test]
+        fn from_store() -> Result<(), ThoughtError> {
+            let added = chrono::offset::Utc::now();
+            let simple = Thought::from_store("This is a thought".to_string(), added);
+            assert_eq!(
+                RawThought{
+                    raw: "This is a thought".to_string(),
+                    added,
+                },
+                simple
+            );
+
+            let with_entities = Thought::from_store("This is a [thought] with [entity] about [thought]".to_string(), added);
+            assert_eq!(
+                RawThought{
+                    raw: "This is a [thought] with [entity] about [thought]".to_string(),
+                    added,
+                },
+                with_entities,
+            );
+            Ok(())
+        }
+    }
+
+
+    #[derive(Debug, PartialEq)]
+    pub struct Entity {
+        pub raw: String,
+    }
+
+    impl Entity {
+        fn from_raw(raw: String) -> Self {
+            Entity { raw }
+        }
+    }
+
+    impl std::fmt::Display for RawThought {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "{}", self.raw)
+        }
+    }
 }
 
 mod store {
     pub mod sqlite {
-        use rusqlite::{Connection, params_from_iter};
-        use crate::thoughts::Thought;
+        use rusqlite::{Connection, params, params_from_iter};
+        use crate::thoughts::{RawThought, Thought};
 
         pub struct Store {
             conn: Connection,
@@ -321,8 +499,8 @@ mod store {
         }
 
         impl Store {
-            pub fn get_thoughts(&self, entity: Option<String>) -> Result<Vec<Thought>> {
-                let mut stmt_lines = vec!["SELECT thought FROM thoughts"];
+            pub fn get_thoughts(&self, entity: Option<String>) -> Result<Vec<RawThought>> {
+                let mut stmt_lines = vec!["SELECT thought, datetime FROM thoughts"];
                 let mut params = vec![];
 
                 if let Some(entity) = entity {
@@ -337,16 +515,80 @@ mod store {
 
                 let mut stmt = self.conn.prepare(stmt_lines.join("\n").as_str())?;
 
-                let rows = stmt.query_map(params_from_iter(params), |row| row.get::<usize, String>(0))?;
+                let rows = stmt.query_map(params_from_iter(params), |row| {
+                    Ok(Thought::from_store(
+                        row.get(0)?,
+                        row.get(1)?,
+                    ))
+                })?;
 
                 let mut thoughts = vec![];
 
                 for thought in rows {
-                    let raw = thought?;
-                    thoughts.push(Thought::from_raw(raw));
-                }
+                    thoughts.push(thought.unwrap());
+                };
 
                 Ok(thoughts)
+            }
+
+            fn make_tables(&self) -> Result<()> {
+                self.conn.execute(
+                    "CREATE TABLE IF NOT EXISTS thoughts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thought TEXT NOT NULL,
+                    datetime INTEGER NOT NULL
+                    )",
+                    (),
+                )?;
+
+                self.conn.execute(
+                    "CREATE TABLE IF NOT EXISTS entities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEST NOT NULL UNIQUE
+                    )",
+                    (),
+                )?;
+
+                self.conn.execute(
+                    "CREATE TABLE IF NOT EXISTS thoughts_entities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thought_id INTEGER,
+                    entity_id INTEGER,
+                    FOREIGN KEY(thought_id) REFERENCES thoughts(id),
+                    FOREIGN KEY(entity_id) REFERENCES entities(id),
+                    UNIQUE(thought_id, entity_id)
+                    )",
+                    (),
+                )?;
+
+                Ok(())
+            }
+
+            pub fn add_thought(&self, thought: Thought) -> Result<()> {
+                self.make_tables()?;
+
+                self.conn.execute(
+                    "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
+                    params![thought.raw, thought.added],
+                )?;
+
+                let thought_id = self.conn.last_insert_rowid();
+
+                for entity in thought.entities {
+                    self.conn.execute(
+                        "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
+                        params![entity.raw],
+                    )?;
+                    let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+                    let mut rows = stmt.query_map(params![entity.raw], |row| row.get::<usize, usize>(0))?;
+                    let entity_id = rows.next().unwrap().unwrap();
+                    self.conn.execute(
+                        "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
+                        params![thought_id, entity_id],
+                    )?;
+                }
+
+                Ok(())
             }
         }
     }
@@ -366,6 +608,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
+            // TODO(muller): Somehow eliminate the matches and use map_err?
             let store = match store::sqlite::open(db) {
                 Ok(store) => store,
                 Err(e) => {
@@ -388,76 +631,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Add { thought, datetime } => {
-            // TODO(muller): Create DB file when nonexistent but warn about it
-            let conn = rusqlite::Connection::open(db).unwrap();
-
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS thoughts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thought TEXT NOT NULL,
-                    datetime INTEGER NOT NULL
-                    )",
-                (),
-            )?;
-
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEST NOT NULL UNIQUE
-                    )",
-                (),
-            )?;
-
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS thoughts_entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thought_id INTEGER,
-                    entity_id INTEGER,
-                    FOREIGN KEY(thought_id) REFERENCES thoughts(id),
-                    FOREIGN KEY(entity_id) REFERENCES entities(id),
-                    UNIQUE(thought_id, entity_id)
-                    )",
-                (),
-            )?;
+            // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
+            let store = match store::sqlite::open(db) {
+                Ok(store) => store,
+                Err(e) => {
+                    eprintln!("Failed to open thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
 
             let now = datetime.unwrap_or_else(chrono::offset::Utc::now);
-
-            let lex = ThoughtLexer::new(thought.as_str());
-            let mut entities: Vec<&str> = vec![];
-            for token in lex {
-                match token.value {
-                    TokenValue::Error => {
-                        eprintln!("Error adding thought: {}", thought);
-                        eprintln!("                      {}^ invalid token at position {}", " ".repeat(token.position), token.position);
-                        std::process::exit(1);
-                    }
-                    TokenValue::EntityReference(entity) => {
-                        entities.push(entity)
-                    }
-                    _ => {}
+            let thought = match Thought::from_input(thought, now) {
+                Ok(thought) => thought,
+                Err(e) => {
+                    eprintln!("Failed to read thought: {}", e);
+                    return Err(Box::new(e));
                 }
-            }
+            };
 
-            conn.execute(
-                "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
-                params![&thought, &now],
-            )?;
-            let thought_id = conn.last_insert_rowid();
-
-            for entity in entities {
-                let entity_name = &entity[1..entity.len() - 1];
-                conn.execute(
-                    "INSERT INTO entities (name) VALUES (?1)
-                    ON CONFLICT(name) DO NOTHING",
-                    params![entity_name],
-                )?;
-                let mut stmt = conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-                let mut rows = stmt.query_map(params![entity_name], |row| row.get::<usize, usize>(0))?;
-                let entity_id = rows.next().unwrap().unwrap();
-                conn.execute(
-                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
-                    params![thought_id, entity_id],
-                )?;
+            match store.add_thought(thought) {
+                Ok(()) => (),
+                Err(e) => {
+                    eprintln!("Failed to add thought: {}", e);
+                    return Err(Box::new(e));
+                }
             }
         }
     }
