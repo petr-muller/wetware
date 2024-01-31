@@ -316,11 +316,7 @@ mod store {
         type Result<T> = std::result::Result<T, SqliteStoreError>;
 
         pub fn open(db: String) -> Result<Store> {
-            let conn = match Connection::open(db) {
-                Ok(conn) => conn,
-                Err(e) => return Err(e.into()),
-            };
-
+            let conn = Connection::open(db)?;
             Ok(Store { conn })
         }
 
@@ -346,10 +342,7 @@ mod store {
                 let mut thoughts = vec![];
 
                 for thought in rows {
-                    let raw = match thought {
-                        Ok(raw) => raw,
-                        Err(e) => return Err(e.into()),
-                    };
+                    let raw = thought?;
                     thoughts.push(Thought::from_raw(raw));
                 }
 
