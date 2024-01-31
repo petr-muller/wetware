@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
-use rusqlite::{params, params_from_iter};
-use crate::thoughts::thought_lexer::{ThoughtLexer, TokenValue};
+use rusqlite::{params};
+use crate::thoughts::lexer::{ThoughtLexer, TokenValue};
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
@@ -45,7 +45,7 @@ mod thoughts {
     // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
     //               https://eli.thegreenplace.net/2022/rewriting-the-lexer-benchmark-in-rust/
     //               Eventually I may want to use [Logos](https://github.com/maciejhirsz/logos)
-    pub mod thought_lexer {
+    pub mod lexer {
         #[derive(Debug, PartialEq)]
         pub enum TokenValue<'source> {
             EOF,
@@ -187,9 +187,26 @@ mod thoughts {
         }
     }
 
+    #[derive(Debug)]
+    pub struct Thought {
+        raw: String,
+    }
+
+    impl Thought {
+        pub fn from_raw(raw: String) -> Self {
+            Thought { raw }
+        }
+    }
+
+    impl std::fmt::Display for Thought {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(f, "{}", self.raw)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
-        use crate::thoughts::thought_lexer::{ThoughtLexer, Token, TokenValue};
+        use crate::thoughts::lexer::{ThoughtLexer, Token, TokenValue};
         // Assert that 'token' has a certain value and optionally a position
         macro_rules! assert_token {
             ($tok:expr, $wantval:expr, $wantpos:expr) => {
@@ -262,6 +279,89 @@ mod thoughts {
     }
 }
 
+mod store {
+    pub mod sqlite {
+        use rusqlite::{Connection, params_from_iter};
+        use crate::thoughts::Thought;
+
+        pub struct Store {
+            conn: Connection,
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct SqliteStoreError {
+            pub message: String,
+        }
+
+        impl std::fmt::Display for SqliteStoreError {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "SQLite store error: {}", self.message)
+            }
+        }
+
+        impl std::error::Error for SqliteStoreError {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                None
+            }
+        }
+
+        impl From<rusqlite::Error> for SqliteStoreError {
+            fn from(rusqlite_err: rusqlite::Error) -> Self {
+                SqliteStoreError {
+                    message: rusqlite_err.to_string(),
+                }
+            }
+        }
+
+        type Result<T> = std::result::Result<T, SqliteStoreError>;
+
+        pub fn open(db: String) -> Result<Store> {
+            let conn = match Connection::open(db) {
+                Ok(conn) => conn,
+                Err(e) => return Err(e.into()),
+            };
+
+            Ok(Store { conn })
+        }
+
+        impl Store {
+            pub fn get_thoughts(&self, entity: Option<String>) -> Result<Vec<Thought>> {
+                let mut stmt_lines = vec!["SELECT thought FROM thoughts"];
+                let mut params = vec![];
+
+                if let Some(entity) = entity {
+                    stmt_lines.append(&mut vec![
+                        "JOIN thoughts_entities ON thoughts.id = thoughts_entities.thought_id",
+                        "JOIN entities ON thoughts_entities.entity_id = entities.id",
+                        "WHERE entities.name = ?1"]);
+                    params.push(entity)
+                }
+
+                stmt_lines.push("ORDER BY datetime");
+
+                let mut stmt = self.conn.prepare(stmt_lines.join("\n").as_str())?;
+
+                let rows = stmt.query_map(params_from_iter(params), |row| row.get::<usize, String>(0))?;
+
+                let mut thoughts = vec![];
+
+                for thought in rows {
+                    let raw = match thought {
+                        Ok(raw) => raw,
+                        Err(e) => return Err(e.into()),
+                    };
+                    thoughts.push(Thought::from_raw(raw));
+                }
+
+                Ok(thoughts)
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {}
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Wet::parse();
 
@@ -272,26 +372,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Thoughts { entity } => {
-            let conn = rusqlite::Connection::open(db).unwrap();
+            // TODO(muller): Do not create DB file on get when nonexistent
+            let store = match store::sqlite::open(db) {
+                Ok(store) => store,
+                Err(e) => {
+                    eprintln!("Failed to open thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
 
-            let mut stmt_lines = vec!["SELECT thought FROM thoughts"];
-            let mut params = vec![];
-            if let Some(entity) = entity {
-                stmt_lines.append(&mut vec![
-                    "JOIN thoughts_entities ON thoughts.id = thoughts_entities.thought_id",
-                    "JOIN entities ON thoughts_entities.entity_id = entities.id",
-                    "WHERE entities.name = ?1"]);
-                params.push(entity)
-            }
-            stmt_lines.push("ORDER BY datetime");
-            let mut stmt = conn.prepare(stmt_lines.join("\n").as_str())?;
+            // TODO(muller): implement entity filter as fluent api instead of a param
+            let thoughts = match store.get_thoughts(entity) {
+                Ok(thoughts) => thoughts,
+                Err(e) => {
+                    eprintln!("Failed to get thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
 
-            let rows = stmt.query_map(params_from_iter(params), |row| row.get::<usize, String>(0))?;
-            for thought in rows {
-                println!("{}", thought.unwrap());
+            for thought in thoughts {
+                println!("{}", thought);
             }
         }
         Commands::Add { thought, datetime } => {
+            // TODO(muller): Create DB file when nonexistent but warn about it
             let conn = rusqlite::Connection::open(db).unwrap();
 
             conn.execute(
