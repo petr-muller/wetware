@@ -17,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 chrono = "0.4.34"
 clap = { version = "4.5.1", features = ["derive", "env"] }
-rusqlite = { version = "0.30.0", features = ["bundled", "chrono"] }
+rusqlite = { version = "0.31.0", features = ["bundled", "chrono"] }
 lazy_static = "1.4.0"
 regex = "1.10.3"
 
