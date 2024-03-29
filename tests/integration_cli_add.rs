@@ -1,22 +1,11 @@
-mod integration {
-    use assert_cmd::Command;
+mod integration_cli_add {
+    use assert_cmd::cmd::Command;
     use chrono::{DateTime, Duration, Utc};
+    use rusqlite::Connection;
     use predicates::prelude::predicate;
-    use rusqlite::{Connection};
 
     #[test]
     fn plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.assert()
-            .failure()
-            .stderr(predicate::str::contains("Usage: wet"))
-            .stderr(predicate::str::contains("add"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn add_plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("wet")?;
         cmd.arg("add")
             .assert()
@@ -28,7 +17,7 @@ mod integration {
     }
 
     #[test]
-    fn add_stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let db = assert_fs::NamedTempFile::new("wetware.db")?;
         let mut cmd = Command::cargo_bin("wet")?;
         cmd.env("WETWARE_DB_PATH", db.path())
@@ -52,7 +41,7 @@ mod integration {
     }
 
     #[test]
-    fn add_stores_thought_in_database_with_default_date() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_default_date() -> Result<(), Box<dyn std::error::Error>> {
         struct ThoughtWithDate {
             thought: String,
             datetime: DateTime<Utc>,
@@ -88,7 +77,7 @@ mod integration {
     }
 
     #[test]
-    fn add_stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
         struct ThoughtWithDate {
             thought: String,
             datetime: DateTime<Utc>,
@@ -124,7 +113,7 @@ mod integration {
     }
 
     #[test]
-    fn add_stores_thought_with_entity_in_database() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_with_entity_in_database() -> Result<(), Box<dyn std::error::Error>> {
         struct StringWithId {
             id: isize,
             content: String,
@@ -186,7 +175,7 @@ mod integration {
     }
 
     #[test]
-    fn add_two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
+    fn two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
         let db = assert_fs::NamedTempFile::new("wetware.db")?;
         let mut cmd = Command::cargo_bin("wet")?;
         cmd.env("WETWARE_DB_PATH", db.path())
@@ -230,69 +219,4 @@ mod integration {
 
         Ok(())
     }
-
-    #[test]
-    fn thoughts_shows_all_thoughts() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [another subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        let expected_output = "This is a thought about [subject]\nThis is another thought about [subject]\nThis is another thought about [another subject]\n";
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("thoughts")
-            .assert()
-            .success()
-            .stdout(predicate::eq(expected_output));
-
-        Ok(())
-    }
-    #[test]
-    fn thoughts_on_shows_thoughts_on_entity() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [another subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        let expected_output = "This is a thought about [subject]\nThis is another thought about [subject]\n";
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("thoughts")
-            .arg("--on=subject")
-            .assert()
-            .success()
-            .stdout(predicate::eq(expected_output));
-
-        Ok(())
-    }
 }
-
