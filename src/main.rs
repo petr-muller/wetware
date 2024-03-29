@@ -30,6 +30,9 @@ enum Commands {
         #[arg(long = "on")]
         entity: Option<String>,
     },
+    /// List entities
+    #[command(name = "entities")]
+    Entities {},
 }
 
 
@@ -41,6 +44,7 @@ struct GlobalFlags {
 }
 
 mod thoughts {
+    use std::fmt::Formatter;
     use chrono::{DateTime, Utc};
     use crate::thoughts::lexer::{ThoughtLexer, TokenValue};
 
@@ -269,7 +273,7 @@ mod thoughts {
     }
 
     impl std::fmt::Display for ThoughtError {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
             write!(f, "SQLite store error: {}", self.message)
         }
     }
@@ -310,6 +314,12 @@ mod thoughts {
                 entities,
             };
             Ok(thought)
+        }
+    }
+
+    impl std::fmt::Display for RawThought {
+        fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+            write!(f, "{}", self.raw)
         }
     }
 
@@ -419,7 +429,7 @@ mod thoughts {
             let added = chrono::offset::Utc::now();
             let simple = Thought::from_store("This is a thought".to_string(), added);
             assert_eq!(
-                RawThought{
+                RawThought {
                     raw: "This is a thought".to_string(),
                     added,
                 },
@@ -450,8 +460,8 @@ mod thoughts {
         }
     }
 
-    impl std::fmt::Display for RawThought {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    impl std::fmt::Display for Entity {
+        fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
             write!(f, "{}", self.raw)
         }
     }
@@ -460,7 +470,7 @@ mod thoughts {
 mod store {
     pub mod sqlite {
         use rusqlite::{Connection, params, params_from_iter};
-        use crate::thoughts::{RawThought, Thought};
+        use crate::thoughts::{Entity, RawThought, Thought};
 
         pub struct Store {
             conn: Connection,
@@ -499,6 +509,22 @@ mod store {
         }
 
         impl Store {
+            pub fn get_entities(&self) -> Result<Vec<Entity>> {
+                let stmt = "SELECT name FROM entities ORDER BY name";
+                let mut stmt = self.conn.prepare(stmt)?;
+                let rows = stmt.query_map(params![], |row| {
+                    Ok(Entity {
+                        raw: row.get(0)?,
+                    })
+                })?;
+
+                let mut entities = vec![];
+                for entity in rows {
+                    entities.push(entity.unwrap());
+                };
+
+                Ok(entities)
+            }
             pub fn get_thoughts(&self, entity: Option<String>) -> Result<Vec<RawThought>> {
                 let mut stmt_lines = vec!["SELECT thought, datetime FROM thoughts"];
                 let mut params = vec![];
@@ -606,6 +632,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     match args.command {
+        Commands::Entities {} => {
+            let store = match store::sqlite::open(db) {
+                Ok(store) => store,
+                Err(e) => {
+                    eprintln!("Failed to open thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
+
+            let entities = match store.get_entities() {
+                Ok(entities) => entities,
+                Err(e) => {
+                    eprintln!("Failed to get thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
+
+            if entities.is_empty() {
+                println!("No entities in the database");
+            } else {
+                for entity in entities {
+                    println!("{}", entity);
+                }
+            }
+        }
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
             // TODO(muller): Somehow eliminate the matches and use map_err?
