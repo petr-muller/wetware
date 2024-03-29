@@ -71,7 +71,7 @@ mod integration_cli_add {
         let now = chrono::Utc::now();
         let age = now - thought.datetime;
         assert!(!age.is_zero());
-        assert!(age < Duration::seconds(1));
+        assert!(age < Duration::try_seconds(1).unwrap());
 
         Ok(())
     }
