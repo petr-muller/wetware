@@ -15,7 +15,7 @@ name = "wet"
 path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4.35"
+chrono = "0.4.37"
 clap = { version = "4.5.4", features = ["derive", "env"] }
 rusqlite = { version = "0.31.0", features = ["bundled", "chrono"] }
 lazy_static = "1.4.0"
