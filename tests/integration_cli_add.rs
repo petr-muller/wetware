@@ -1,99 +1,10 @@
+mod helpers;
+
 mod integration_cli_add {
-    use assert_cmd::cmd::Command;
-    use assert_fs::NamedTempFile;
-    use chrono::{DateTime, Duration, Utc};
-    use rusqlite::Connection;
+    use chrono::Duration;
     use predicates::prelude::predicate;
+    use crate::helpers::TestWet;
 
-    struct ThoughtsTableRow {
-        id: isize,
-        thought: String,
-        datetime: DateTime<Utc>,
-    }
-
-    struct EntitiesTableRow {
-        id: isize,
-        name: String,
-    }
-
-    struct ThoughtsEntitiesTableRow {
-        thought_id: isize,
-        entity_id: isize,
-    }
-
-    struct TestWet {
-        db: NamedTempFile,
-    }
-
-    impl TestWet {
-        fn new() -> Result<Self, Box<dyn std::error::Error>> {
-            Ok(Self {
-                db: NamedTempFile::new("wetware.db")?
-            })
-        }
-        fn cmd(&self) -> Result<Command, Box<dyn std::error::Error>> {
-            let mut cmd = Command::cargo_bin("wet")?;
-            cmd.env("WETWARE_DB_PATH", self.db.path());
-            Ok(cmd)
-        }
-        fn add(&self, thought: &str) -> Result<Command, Box<dyn std::error::Error>> {
-            let mut cmd = self.cmd()?;
-            cmd.arg("add");
-            cmd.arg(thought);
-            Ok(cmd)
-        }
-
-        fn connection(&self) -> Result<Connection, Box<dyn std::error::Error>> {
-            let conn = Connection::open(self.db.path())?;
-            Ok(conn)
-        }
-
-        fn thoughts_rows(&self) -> Result<Vec<ThoughtsTableRow>, Box<dyn std::error::Error>> {
-            let conn = self.connection()?;
-            let mut stmt = conn.prepare("SELECT id, thought, datetime FROM thoughts")?;
-            let rows = stmt.query_map([], |row| Ok(ThoughtsTableRow {
-                id: row.get(0)?,
-                thought: row.get(1)?,
-                datetime: row.get(2)?,
-            }))?;
-            let mut thoughts = Vec::new();
-            for thought in rows {
-                thoughts.push(thought.unwrap())
-            }
-            Ok(thoughts)
-        }
-
-        fn entities_rows(&self) -> Result<Vec<EntitiesTableRow>, Box<dyn std::error::Error>> {
-            let conn = self.connection()?;
-            let mut stmt = conn.prepare("SELECT id, name FROM entities")?;
-            let rows = stmt.query_map([], |row| Ok(EntitiesTableRow {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            }))?;
-            let mut entities = Vec::new();
-            for entity in rows {
-                entities.push(entity.unwrap())
-            }
-
-            Ok(entities)
-        }
-
-        fn thoughts_to_entities_rows(&self) -> Result<Vec<ThoughtsEntitiesTableRow>, Box<dyn std::error::Error>> {
-            let conn = self.connection()?;
-            let mut stmt = conn.prepare("SELECT thought_id, entity_id FROM thoughts_entities")?;
-            let rows = stmt.query_map([], |row| Ok(ThoughtsEntitiesTableRow {
-                thought_id: row.get(0)?,
-                entity_id: row.get(1)?,
-            }))?;
-
-            let mut links = Vec::new();
-            for link in rows {
-                links.push(link.unwrap())
-            }
-
-            Ok(links)
-        }
-    }
 
     #[test]
     fn plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
