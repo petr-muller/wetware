@@ -1,61 +1,40 @@
+pub mod helpers;
+
 mod integration_cli_entities {
-    use assert_cmd::Command;
     use predicates::prelude::predicate;
+    use crate::helpers::TestWet;
 
     #[test]
     fn shows_no_entities_when_there_are_none() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
+        let wet = TestWet::new()?;
+        let mut first_add = wet.add("This is a thought")?;
+        first_add.assert().success();
+
+        let mut second_add = wet.add("This is another thought")?;
+        second_add.assert().success();
+
         let expected_output = "No entities in the database\n";
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("entities")
-            .assert()
-            .success()
-            .stdout(predicate::eq(expected_output));
+        let mut entities = wet.entities()?;
+        entities.assert().success().stdout(predicate::eq(expected_output));
 
         Ok(())
     }
 
     #[test]
     fn shows_all_entities_sorted_by_name() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought about [a subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [b subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
+        let wet = TestWet::new()?;
+        let mut first_add = wet.add("This is another thought about [subject]")?;
+        first_add.assert().success();
+
+        let mut second_add = wet.add("This is a thought about [a subject]")?;
+        second_add.assert().success();
+
+        let mut third_add = wet.add("This is another thought about [b subject]")?;
+        third_add.assert().success();
+
         let expected_output = "a subject\nb subject\nsubject\n";
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("entities")
-            .assert()
-            .success()
-            .stdout(predicate::eq(expected_output));
+        let mut entities = wet.entities()?;
+        entities.assert().success().stdout(predicate::eq(expected_output));
 
         Ok(())
     }

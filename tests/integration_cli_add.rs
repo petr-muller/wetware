@@ -1,13 +1,15 @@
+pub mod helpers;
+
 mod integration_cli_add {
-    use assert_cmd::cmd::Command;
-    use chrono::{DateTime, Duration, Utc};
-    use rusqlite::Connection;
+    use chrono::Duration;
     use predicates::prelude::predicate;
+    use crate::helpers::TestWet;
+
 
     #[test]
     fn plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.arg("add")
+        let mut wet = TestWet::new().unwrap().cmd()?;
+        wet.arg("add")
             .assert()
             .failure()
             .stderr(predicate::str::contains("Usage: wet add"))
@@ -18,58 +20,31 @@ mod integration_cli_add {
 
     #[test]
     fn stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a simple thought")
-            .assert()
-            .success();
+        let wet = TestWet::new()?;
+        let mut add = wet.add("This is a simple thought")?;
+        add.assert().success();
 
-        let conn = Connection::open(db.path())?;
-        let mut stmt = conn.prepare("SELECT thought FROM thoughts")?;
-        let rows = stmt.query_map([], |row| row.get::<usize, String>(0))?;
-        let mut thoughts = Vec::new();
-        for thought in rows {
-            thoughts.push(thought);
-        }
+        let thoughts_rows = wet.thoughts_rows()?;
 
-        assert_eq!(thoughts.len(), 1);
-        assert_eq!(thoughts[0].as_ref().unwrap(), "This is a simple thought");
+        assert_eq!(thoughts_rows.len(), 1);
+        assert_eq!(thoughts_rows[0].thought, "This is a simple thought");
 
         Ok(())
     }
 
     #[test]
     fn stores_thought_in_database_with_default_date() -> Result<(), Box<dyn std::error::Error>> {
-        struct ThoughtWithDate {
-            thought: String,
-            datetime: DateTime<Utc>,
-        }
+        let wet = TestWet::new()?;
+        let mut add = wet.add("This is a thought with a default date")?;
+        add.assert().success();
 
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought with a default date")
-            .assert()
-            .success();
-        let conn = Connection::open(db.path())?;
-        let mut stmt = conn.prepare("SELECT thought, datetime FROM thoughts")?;
-        let rows = stmt.query_map([], |row| Ok(ThoughtWithDate {
-            thought: row.get(0)?,
-            datetime: row.get(1)?,
-        }))?;
-        let mut thoughts = Vec::new();
-        for thought in rows {
-            thoughts.push(thought)
-        }
+        let thought_rows = wet.thoughts_rows()?;
 
-        assert_eq!(thoughts.len(), 1);
-        let thought = thoughts[0].as_ref().unwrap();
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
         assert_eq!(thought.thought, "This is a thought with a default date");
-        let now = chrono::Utc::now();
-        let age = now - thought.datetime;
+
+        let age = chrono::Utc::now() - thought.datetime;
         assert!(!age.is_zero());
         assert!(age < Duration::try_seconds(1).unwrap());
 
@@ -78,33 +53,17 @@ mod integration_cli_add {
 
     #[test]
     fn stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
-        struct ThoughtWithDate {
-            thought: String,
-            datetime: DateTime<Utc>,
-        }
-
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("--datetime")
+        let wet = TestWet::new()?;
+        let mut add = wet.add("This is a thought with a given date")?;
+        add.arg("--datetime")
             .arg("2023-10-30T00:02:42+01:00")
-            .arg("This is a thought with a given date")
             .assert()
             .success();
-        let conn = Connection::open(db.path())?;
-        let mut stmt = conn.prepare("SELECT thought, datetime FROM thoughts")?;
-        let rows = stmt.query_map([], |row| Ok(ThoughtWithDate {
-            thought: row.get(0)?,
-            datetime: row.get(1)?,
-        }))?;
-        let mut thoughts = Vec::new();
-        for thought in rows {
-            thoughts.push(thought)
-        }
 
-        assert_eq!(thoughts.len(), 1);
-        let thought = thoughts[0].as_ref().unwrap();
+        let thought_rows = wet.thoughts_rows()?;
+
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
         assert_eq!(thought.thought, "This is a thought with a given date");
         let expected = chrono::DateTime::parse_from_rfc3339("2023-10-29T23:02:42+00:00").unwrap();
         assert_eq!(thought.datetime, expected);
@@ -114,107 +73,46 @@ mod integration_cli_add {
 
     #[test]
     fn stores_thought_with_entity_in_database() -> Result<(), Box<dyn std::error::Error>> {
-        struct StringWithId {
-            id: isize,
-            content: String,
-        }
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought about [subject]")
-            .assert()
-            .success();
-        let conn = Connection::open(db.path())?;
-        let mut stmt = conn.prepare("SELECT id, thought FROM thoughts")?;
-        let rows = stmt.query_map([], |row| Ok(StringWithId {
-            id: row.get(0)?,
-            content: row.get(1)?,
-        }))?;
-        let mut thoughts = Vec::new();
-        for thought in rows {
-            thoughts.push(thought)
-        }
-        assert_eq!(thoughts.len(), 1);
-        let thought = thoughts[0].as_ref().unwrap();
-        assert_eq!(thought.content, "This is a thought about [subject]");
+        let wet = TestWet::new()?;
+        let mut add = wet.add("This is a thought about [subject]")?;
+        add.assert().success();
 
-        let mut stmt = conn.prepare("SELECT id, name FROM entities")?;
-        let rows = stmt.query_map([], |row| Ok(StringWithId {
-            id: row.get(0)?,
-            content: row.get(1)?,
-        }))?;
-        let mut entities = Vec::new();
-        for entity in rows {
-            entities.push(entity)
-        }
-        assert_eq!(entities.len(), 1);
-        let entity = entities[0].as_ref().unwrap();
-        assert_eq!(entity.content, "subject");
+        let thoughts_rows = wet.thoughts_rows()?;
+        assert_eq!(thoughts_rows.len(), 1);
+        let thought = &thoughts_rows[0];
+        assert_eq!(thought.thought, "This is a thought about [subject]");
 
-        struct ManyToManyItem {
-            left: isize,
-            right: isize,
-        }
+        let entities_rows = wet.entities_rows()?;
 
-        let mut stmt = conn.prepare("SELECT thought_id, entity_id FROM thoughts_entities")?;
-        let rows = stmt.query_map([], |row| Ok(ManyToManyItem {
-            left: row.get(0)?,
-            right: row.get(1)?,
-        }))?;
-        let mut links = Vec::new();
-        for link in rows {
-            links.push(link)
-        }
+        assert_eq!(entities_rows.len(), 1);
+        let entity = &entities_rows[0];
+        assert_eq!(entity.name, "subject");
+
+        let links = wet.thoughts_to_entities_rows()?;
+
         assert_eq!(links.len(), 1);
-        let link = links[0].as_ref().unwrap();
-        assert_eq!(thought.id, link.left);
-        assert_eq!(entity.id, link.right);
+        let link = &links[0];
+        assert_eq!(thought.id, link.thought_id);
+        assert_eq!(entity.id, link.entity_id);
 
         Ok(())
     }
 
     #[test]
     fn two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
-        let db = assert_fs::NamedTempFile::new("wetware.db")?;
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is a thought about [subject]")
-            .assert()
-            .success();
-        let mut cmd = Command::cargo_bin("wet")?;
-        cmd.env("WETWARE_DB_PATH", db.path())
-            .arg("add")
-            .arg("This is another thought about [subject]")
-            .assert()
-            .success();
-        let conn = Connection::open(db.path())?;
-        let mut stmt = conn.prepare("SELECT name FROM entities")?;
+        let wet = TestWet::new()?;
+        let mut first_add = wet.add("This is a thought about [subject]")?;
+        first_add.assert().success();
 
-        let rows = stmt.query_map([], |row| row.get::<usize, String>(0))?;
+        let mut second_add = wet.add("This is another thought about [subject]")?;
+        second_add.assert().success();
 
-        let mut entities = Vec::new();
-        for entity in rows {
-            entities.push(entity)
-        }
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].as_ref().unwrap(), "subject");
+        let entities_rows = wet.entities_rows()?;
 
-        struct ManyToManyItem {
-            _left: isize,
-            _right: isize,
-        }
+        assert_eq!(entities_rows.len(), 1);
+        assert_eq!(entities_rows[0].name, "subject");
 
-        let mut stmt = conn.prepare("SELECT thought_id, entity_id FROM thoughts_entities")?;
-        let rows = stmt.query_map([], |row| Ok(ManyToManyItem {
-            _left: row.get(0)?,
-            _right: row.get(1)?,
-        }))?;
-        let mut links = Vec::new();
-        for link in rows {
-            links.push(link)
-        }
+        let links = wet.thoughts_to_entities_rows()?;
         assert_eq!(links.len(), 2);
 
         Ok(())
