@@ -38,6 +38,18 @@ impl TestWet {
         Ok(cmd)
     }
 
+    pub fn entities(&self) -> Result<Command, Box<dyn std::error::Error>> {
+        let mut cmd = self.cmd()?;
+        cmd.arg("entities");
+        Ok(cmd)
+    }
+
+    pub fn thoughts(&self) -> Result<Command, Box<dyn std::error::Error>> {
+        let mut cmd = self.cmd()?;
+        cmd.arg("thoughts");
+        Ok(cmd)
+    }
+
     fn connection(&self) -> Result<rusqlite::Connection, Box<dyn std::error::Error>> {
         let conn = rusqlite::Connection::open(self.db.path())?;
         Ok(conn)

@@ -1,4 +1,4 @@
-mod helpers;
+pub mod helpers;
 
 mod integration_cli_add {
     use chrono::Duration;
