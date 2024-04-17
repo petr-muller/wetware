@@ -331,13 +331,13 @@ mod thoughts {
         fn as_thought_simple() -> Result<(), ThoughtError> {
             let added = chrono::offset::Utc::now();
             let raw = RawThought {
-                raw: "This is a thought".to_string(),
+                raw: "This is a testing thought".to_string(),
                 added,
             };
             let thought = raw.as_thought()?;
             assert_eq!(
                 Thought {
-                    raw: "This is a thought".to_string(),
+                    raw: "This is a testing thought".to_string(),
                     entities: vec![],
                     added,
                 },
