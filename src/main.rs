@@ -520,7 +520,7 @@ mod store {
 
                 let mut entities = vec![];
                 for entity in rows {
-                    entities.push(entity.unwrap());
+                    entities.push(entity?);
                 };
 
                 Ok(entities)
@@ -551,7 +551,7 @@ mod store {
                 let mut thoughts = vec![];
 
                 for thought in rows {
-                    thoughts.push(thought.unwrap());
+                    thoughts.push(thought?);
                 };
 
                 Ok(thoughts)
@@ -607,7 +607,7 @@ mod store {
                     )?;
                     let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
                     let mut rows = stmt.query_map(params![entity.raw], |row| row.get::<usize, usize>(0))?;
-                    let entity_id = rows.next().unwrap().unwrap();
+                    let entity_id = rows.next().unwrap()?;
                     self.conn.execute(
                         "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
                         params![thought_id, entity_id],
@@ -691,7 +691,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let now = datetime.unwrap_or_else(chrono::offset::Utc::now);
+            let now = datetime.unwrap_or_else(Utc::now);
             let thought = match Thought::from_input(thought, now) {
                 Ok(thought) => thought,
                 Err(e) => {
