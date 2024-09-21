@@ -14,10 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - run: rustup toolchain install stable --profile minimal
+    - uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --verbose
+    - name: Install cargo-nextest
+      uses: baptiste0928/cargo-install@v1
+      with:
+        crate: cargo-nextest
+        args: --locked
+
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo nextest run
 
   lint:
     runs-on: ubuntu-latest
