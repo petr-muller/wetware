@@ -1,8 +1,11 @@
 #![allow(clippy::upper_case_acronyms)]
 
+mod tui;
+mod thoughts;
+
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
-use crate::thoughts::Thought;
+use crate::thoughts_legacy::Thought;
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
@@ -43,10 +46,10 @@ struct GlobalFlags {
     db: Option<String>,
 }
 
-mod thoughts {
+mod thoughts_legacy {
     use std::fmt::Formatter;
     use chrono::{DateTime, Utc};
-    use crate::thoughts::lexer::{ThoughtLexer, TokenValue};
+    use crate::thoughts_legacy::lexer::{ThoughtLexer, TokenValue};
 
     // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
     //               https://eli.thegreenplace.net/2022/rewriting-the-lexer-benchmark-in-rust/
@@ -195,7 +198,7 @@ mod thoughts {
 
     #[cfg(test)]
     mod lexer_tests {
-        use crate::thoughts::lexer::{ThoughtLexer, Token, TokenValue};
+        use crate::thoughts_legacy::lexer::{ThoughtLexer, Token, TokenValue};
         // Assert that 'token' has a certain value and optionally a position
         macro_rules! assert_token {
             ($tok:expr, $wantval:expr, $wantpos:expr) => {
@@ -325,7 +328,7 @@ mod thoughts {
 
     #[cfg(test)]
     mod raw_thought_tests {
-        use crate::thoughts::{Entity, RawThought, Thought, ThoughtError};
+        use crate::thoughts_legacy::{Entity, RawThought, Thought, ThoughtError};
 
         #[test]
         fn as_thought_simple() -> Result<(), ThoughtError> {
@@ -391,7 +394,7 @@ mod thoughts {
 
     #[cfg(test)]
     mod thought_tests {
-        use crate::thoughts::{Entity, RawThought, Thought, ThoughtError};
+        use crate::thoughts_legacy::{Entity, RawThought, Thought, ThoughtError};
 
         #[test]
         fn from_input_simple() -> Result<(), ThoughtError> {
@@ -470,7 +473,7 @@ mod thoughts {
 mod store {
     pub mod sqlite {
         use rusqlite::{Connection, params, params_from_iter};
-        use crate::thoughts::{Entity, RawThought, Thought};
+        use crate::thoughts_legacy::{Entity, RawThought, Thought};
 
         pub struct Store {
             conn: Connection,
