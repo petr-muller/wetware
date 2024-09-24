@@ -32,6 +32,11 @@ pub struct EntityColorizer {
     next_idx: usize,
 }
 
+impl Default for EntityColorizer {
+    fn default() -> Self {
+        EntityColorizer::new()
+    }
+}
 
 impl EntityColorizer {
     /// Creates a new colorizer with a default palette

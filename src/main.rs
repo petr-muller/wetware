@@ -559,3 +559,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+struct OutputThought {
+    added: DateTime<Utc>,
+    fragments: Vec<OutputThoughtFragment>,
+}
+
+enum OutputThoughtFragment {
+    Raw { raw: String },
+    EntityRef { entity: String, raw: String },
+}
