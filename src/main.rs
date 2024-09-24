@@ -6,7 +6,9 @@ mod store;
 
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
+use ratatui::{TerminalOptions, Viewport};
 use crate::thoughts_legacy::Thought;
+use crate::tui::app::Thoughts;
 
 #[derive(Debug, Parser)]
 #[clap(name = "wet", version)]
@@ -37,6 +39,10 @@ enum Commands {
     /// List entities
     #[command(name = "entities")]
     Entities {},
+
+    /// TUI
+    #[command(name = "tui")]
+    Tui {},
 }
 
 
@@ -479,6 +485,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
 
+
     match args.command {
         Commands::Entities {} => {
             let store = match store::sqlite::open(db) {
@@ -528,6 +535,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for thought in thoughts {
                 println!("{}", thought);
             }
+        }
+        Commands::Tui {} => {
+            let mut terminal = ratatui::init_with_options(TerminalOptions {
+                viewport: Viewport::Inline(12),
+            });
+            let tui_result = Thoughts::default().run(&mut terminal);
+            ratatui::restore();
+            return match tui_result {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    eprintln!("TUI failed: {}", e);
+                    Err(Box::new(e))
+                }
+            };
         }
         Commands::Add { thought, datetime } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
