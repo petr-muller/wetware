@@ -19,10 +19,9 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Install cargo-nextest
-      uses: baptiste0928/cargo-install@v1
+      uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-nextest
-        args: --locked
 
     - name: Run tests
       run: cargo nextest run
