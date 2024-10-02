@@ -1,5 +1,4 @@
 use crate::tui::entity_colorizer::EntityColorizer;
-use crate::{OutputThought, OutputThoughtFragment};
 use crossterm::event;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::buffer::Buffer;
@@ -17,7 +16,8 @@ use std::ops::Sub;
 use std::vec::IntoIter;
 #[allow(unused_imports)]
 use chrono::{DateTime, Local};
-use crate::model::entities::EntityId;
+use crate::model::entities::Id as EntityId;
+use crate::model::thoughts::{Fragment, Thought};
 
 #[derive(Default)]
 pub struct Thoughts {
@@ -74,7 +74,7 @@ impl Thoughts {
     }
 
     #[cfg(test)]
-    fn populated(thoughts: Vec<OutputThought>) -> Self {
+    fn populated(thoughts: Vec<Thought>) -> Self {
         Self {
             view: ThoughtsList::populated(thoughts).in_utc(),
             should_exit: false,
@@ -88,7 +88,7 @@ impl Widget for &mut Thoughts {
     }
 }
 
-fn make_list_item<'a>(thought: &'a OutputThought, colorizer: &mut EntityColorizer, keep_utc: bool) -> ListItem<'a> {
+fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, keep_utc: bool) -> ListItem<'a> {
     let added = if keep_utc {
         thought.added.format("%Y %b %d %H:%M").to_string()
     } else {
@@ -101,8 +101,8 @@ fn make_list_item<'a>(thought: &'a OutputThought, colorizer: &mut EntityColorize
 
     for fragment in thought.fragments.iter() {
         let span = match fragment {
-            OutputThoughtFragment::Raw { raw } => { Span::from(raw) }
-            OutputThoughtFragment::EntityRef { entity, raw } => {
+            Fragment::Plain { text } => { Span::from(text) }
+            Fragment::EntityRef { entity, raw } => {
                 Span::styled(raw, colorizer.assign_color(EntityId::from(entity)))
             }
         };
@@ -114,7 +114,7 @@ fn make_list_item<'a>(thought: &'a OutputThought, colorizer: &mut EntityColorize
 
 #[derive(Default)]
 struct ThoughtsList {
-    thoughts: Vec<OutputThought>,
+    thoughts: Vec<Thought>,
     thoughts_tui: ListState,
 
     entity_colorizer: EntityColorizer,
@@ -125,7 +125,7 @@ struct ThoughtsList {
 
 impl ThoughtsList {
     #[cfg(test)]
-    fn populated(thoughts: Vec<OutputThought>) -> Self {
+    fn populated(thoughts: Vec<Thought>) -> Self {
         Self {
             thoughts,
             thoughts_tui: ListState::default().with_selected(Some(0)),
@@ -166,24 +166,26 @@ impl ThoughtsList {
 }
 
 #[cfg(test)]
-fn short_thoughts() -> IntoIter<OutputThought> {
+fn short_thoughts() -> IntoIter<Thought> {
     let v = vec![
-        OutputThought {
+        Thought {
+            raw: String::from("[Entity] does [Something] with [Entity]"),
             added: DateTime::parse_from_rfc3339("2024-09-24T00:23:00+02:00").unwrap().to_utc(),
             fragments: vec![
-                OutputThoughtFragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
-                OutputThoughtFragment::Raw { raw: String::from(" does ") },
-                OutputThoughtFragment::EntityRef { raw: String::from("Something"), entity: String::from("Something") },
-                OutputThoughtFragment::Raw { raw: String::from(" with ") },
-                OutputThoughtFragment::EntityRef { raw: String::from("ActuallyEntity"), entity: String::from("Entity") }
+                Fragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
+                Fragment::Plain { text: String::from(" does ") },
+                Fragment::EntityRef { raw: String::from("Something"), entity: String::from("Something") },
+                Fragment::Plain { text: String::from(" with ") },
+                Fragment::EntityRef { raw: String::from("ActuallyEntity"), entity: String::from("Entity") }
             ],
         },
-        OutputThought {
+        Thought {
+            raw: String::from("[Entity] is not [Another Entity]"),
             added: DateTime::parse_from_rfc3339("2024-09-24T00:25:00+02:00").unwrap().to_utc(),
             fragments: vec![
-                OutputThoughtFragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
-                OutputThoughtFragment::Raw { raw: String::from(" is not ") },
-                OutputThoughtFragment::EntityRef { raw: String::from("another entity"), entity: String::from("Another Entity") },
+                Fragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
+                Fragment::Plain { text: String::from(" is not ") },
+                Fragment::EntityRef { raw: String::from("another entity"), entity: String::from("Another Entity") },
             ]
         },
     ];
@@ -191,15 +193,17 @@ fn short_thoughts() -> IntoIter<OutputThought> {
 }
 
 #[cfg(test)]
-fn no_ref_thoughts() -> IntoIter<OutputThought> {
+fn no_ref_thoughts() -> IntoIter<Thought> {
     let v = vec![
-        OutputThought {
+        Thought {
+            raw: String::from("First thought"),
             added: DateTime::parse_from_rfc3339("2024-10-01T00:11:00+02:00").unwrap().to_utc(),
-            fragments: vec![OutputThoughtFragment::Raw { raw: String::from("First thought") }],
+            fragments: vec![Fragment::Plain { text: String::from("First thought") }],
         },
-        OutputThought {
+        Thought {
+            raw: String::from("Second thought"),
             added: DateTime::parse_from_rfc3339("2024-10-01T00:12:00+02:00").unwrap().to_utc(),
-            fragments: vec![OutputThoughtFragment::Raw { raw: String::from("Second thought") }],
+            fragments: vec![Fragment::Plain { text: String::from("Second thought") }],
         },
     ];
     v.into_iter()
@@ -216,7 +220,7 @@ mod thoughts_list_tests {
 
     #[cfg(test)]
     use pretty_assertions::assert_eq;
-    use crate::model::entities::EntityId;
+    use crate::model::entities::Id;
 
     #[test]
     fn render_simple_thoughts() {
@@ -271,16 +275,16 @@ mod thoughts_list_tests {
         let date_style = Style::from(ORANGE.c500);
         expected.set_style(Rect::new(2, 0, 17, 2), date_style);
 
-        let entity_style = Style::from(tl.entity_colorizer.assign_color(EntityId::from("Entity")));
+        let entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Entity")));
 
         expected.set_style(Rect::new(line1.find("Entity").unwrap() as u16, 0, "Entity".len() as u16, 1), entity_style);
         expected.set_style(Rect::new(line1.find("ActuallyEntity").unwrap() as u16, 0, "ActuallyEntity".len() as u16, 1), entity_style);
         expected.set_style(Rect::new(line2.find("Entity").unwrap() as u16, 1, "Entity".len() as u16, 1), entity_style);
 
-        let something_style = Style::from(tl.entity_colorizer.assign_color(EntityId::from("Something")));
+        let something_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Something")));
         expected.set_style(Rect::new(line1.find("Something").unwrap() as u16, 0, "Something".len() as u16, 1), something_style);
 
-        let another_entity_style = Style::from(tl.entity_colorizer.assign_color(EntityId::from("Another Entity")));
+        let another_entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Another Entity")));
         expected.set_style(Rect::new(line2.find("another entity").unwrap() as u16, 1, "another entity".len() as u16, 1), another_entity_style);
 
         assert_eq!(expected, buf);

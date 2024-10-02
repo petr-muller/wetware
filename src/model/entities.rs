@@ -1,16 +1,10 @@
 use std::fmt::Formatter;
 
-pub type EntityId = String;
+pub type Id = String;
 
 #[derive(Debug, PartialEq)]
 pub struct Entity {
     pub raw: String,
-}
-
-impl Entity {
-    pub fn from_raw(raw: String) -> Self {
-        Entity { raw }
-    }
 }
 
 impl std::fmt::Display for Entity {
