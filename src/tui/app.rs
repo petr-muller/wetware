@@ -1,4 +1,3 @@
-use crate::thoughts::entities::EntityId;
 use crate::tui::entity_colorizer::EntityColorizer;
 use crate::{OutputThought, OutputThoughtFragment};
 use crossterm::event;
@@ -18,6 +17,7 @@ use std::ops::Sub;
 use std::vec::IntoIter;
 #[allow(unused_imports)]
 use chrono::{DateTime, Local};
+use crate::model::entities::EntityId;
 
 #[derive(Default)]
 pub struct Thoughts {
@@ -213,10 +213,10 @@ mod thoughts_list_tests {
     use super::{no_ref_thoughts, short_thoughts, ThoughtsList};
 
     use ratatui::style::Style;
-    use crate::thoughts::entities::EntityId;
 
     #[cfg(test)]
     use pretty_assertions::assert_eq;
+    use crate::model::entities::EntityId;
 
     #[test]
     fn render_simple_thoughts() {
@@ -336,7 +336,6 @@ mod thoughts_tests {
         tui.handle_key_event(KeyCode::Char('k').into());
         tui.render(buf.area, &mut buf);
         assert_eq!(expected_start, buf);
-
 
         Ok(())
     }

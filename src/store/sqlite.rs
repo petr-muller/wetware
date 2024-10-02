@@ -1,5 +1,6 @@
 use rusqlite::{Connection, params, params_from_iter};
-use crate::thoughts_legacy::{Entity, RawThought, Thought};
+use crate::model::entities::Entity;
+use crate::model::thoughts::{RawThought, Thought};
 
 pub struct Store {
     conn: Connection,
@@ -71,7 +72,7 @@ impl Store {
         let mut stmt = self.conn.prepare(stmt_lines.join("\n").as_str())?;
 
         let rows = stmt.query_map(params_from_iter(params), |row| {
-            Ok(Thought::from_store(
+            Ok(RawThought::from_store(
                 row.get(0)?,
                 row.get(1)?,
             ))
