@@ -26,6 +26,8 @@ pub struct Thoughts {
     view: ThoughtsList,
 }
 
+impl Thoughts {}
+
 impl Thoughts {
     /// runs application main loop until the user quits
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -33,6 +35,13 @@ impl Thoughts {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?
         }
+        Ok(())
+    }
+
+    /// runs application main loop until the user quits
+    pub fn noninteractive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        self.view.interactive = false;
+        terminal.draw(|frame| self.draw(frame))?;
         Ok(())
     }
 
@@ -73,12 +82,16 @@ impl Thoughts {
         self.view.select_previous()
     }
 
-    #[cfg(test)]
-    fn populated(thoughts: Vec<Thought>) -> Self {
+    pub fn populated(thoughts: Vec<Thought>) -> Self {
         Self {
-            view: ThoughtsList::populated(thoughts).in_utc(),
+            view: ThoughtsList::populated(thoughts),
             should_exit: false,
         }
+    }
+
+    #[cfg(test)]
+    fn in_utc(&mut self) {
+        self.view.keep_utc = true
     }
 }
 
@@ -120,17 +133,18 @@ struct ThoughtsList {
     entity_colorizer: EntityColorizer,
 
     keep_utc: bool,
+    interactive: bool,
 }
 
 
 impl ThoughtsList {
-    #[cfg(test)]
     fn populated(thoughts: Vec<Thought>) -> Self {
         Self {
             thoughts,
             thoughts_tui: ListState::default().with_selected(Some(0)),
             entity_colorizer: EntityColorizer::default(),
             keep_utc: false,
+            interactive: true,
         }
     }
 
@@ -157,9 +171,13 @@ impl ThoughtsList {
                 make_list_item(thought, &mut self.entity_colorizer, self.keep_utc)
             }).collect();
 
-        let list = List::new(items)
-            .highlight_symbol("* ")
-            .highlight_spacing(HighlightSpacing::Always);
+        let list = if self.interactive {
+            List::new(items)
+                .highlight_symbol("* ")
+                .highlight_spacing(HighlightSpacing::Always)
+        } else {
+            List::new(items)
+        };
 
         StatefulWidget::render(list, area, buf, &mut self.thoughts_tui);
     }
@@ -306,6 +324,7 @@ mod thoughts_tests {
     #[test]
     fn render_simple_thoughts() -> io::Result<()> {
         let mut tui = Thoughts::populated(no_ref_thoughts().collect());
+        tui.in_utc();
 
         let line1 = "  2024 Sep 30 22:11 > First thought";
         let line1_selected = "* 2024 Sep 30 22:11 > First thought";

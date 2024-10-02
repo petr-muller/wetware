@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             // TODO(muller): implement entity filter as fluent api instead of a param
-            let thoughts = match store.get_thoughts(entity) {
+            let raw = match store.get_thoughts(entity) {
                 Ok(thoughts) => thoughts,
                 Err(e) => {
                     eprintln!("Failed to get thoughts: {}", e);
@@ -108,15 +108,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            for thought in thoughts {
-                println!("{}", thought);
+
+            let mut thoughts = vec![];
+            for item in raw {
+                thoughts.push(item.as_thought().unwrap())
             }
+
+            let output_size = match u16::try_from(thoughts.len()) {
+                Ok(x) => { x }
+                Err(_) => { u16::MAX }
+            };
+
+            let mut terminal = ratatui::init_with_options(TerminalOptions {
+                viewport: Viewport::Inline(output_size),
+            });
+
+
+            let tui_result = Thoughts::populated(thoughts).noninteractive(&mut terminal);
+            ratatui::restore();
+            return match tui_result {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    eprintln!("TUI failed: {}", e);
+                    Err(Box::new(e))
+                }
+            };
         }
         Commands::Tui {} => {
             let mut terminal = ratatui::init_with_options(TerminalOptions {
                 viewport: Viewport::Inline(12),
             });
-            let tui_result = Thoughts::default().run(&mut terminal);
+
+            let store = match store::sqlite::open(db) {
+                Ok(store) => store,
+                Err(e) => {
+                    eprintln!("Failed to open thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
+
+            let raw = match store.get_thoughts(None) {
+                Ok(thoughts) => thoughts,
+                Err(e) => {
+                    eprintln!("Failed to get thoughts: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
+
+            let mut thoughts = vec![];
+            for item in raw {
+                thoughts.push(item.as_thought().unwrap())
+            }
+
+
+            let tui_result = Thoughts::populated(thoughts).run(&mut terminal);
             ratatui::restore();
             return match tui_result {
                 Ok(()) => Ok(()),

@@ -347,7 +347,7 @@ impl RawThought {
         RawThought { raw, added }
     }
 
-    fn as_thought(&self) -> Result<Thought> {
+    pub fn as_thought(&self) -> Result<Thought> {
         let lex = ThoughtLexer::new(self.raw.as_str());
         let mut fragments = vec![];
         for token in lex {
