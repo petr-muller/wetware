@@ -1,6 +1,6 @@
 use rusqlite::{Connection, params, params_from_iter};
 use crate::model::entities::Entity;
-use crate::model::thoughts::{RawThought, Thought};
+use crate::model::thoughts::{Fragment, RawThought, Thought};
 
 pub struct Store {
     conn: Connection,
@@ -130,18 +130,20 @@ impl Store {
 
         let thought_id = self.conn.last_insert_rowid();
 
-        for entity in thought.entities {
-            self.conn.execute(
-                "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
-                params![entity.raw],
-            )?;
-            let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-            let mut rows = stmt.query_map(params![entity.raw], |row| row.get::<usize, usize>(0))?;
-            let entity_id = rows.next().unwrap()?;
-            self.conn.execute(
-                "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
-                params![thought_id, entity_id],
-            )?;
+        for fragment in thought.fragments {
+            if let Fragment::EntityRef{entity, ..} = fragment {
+                self.conn.execute(
+                    "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
+                    params![entity],
+                )?;
+                let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+                let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
+                let entity_id = rows.next().unwrap()?;
+                self.conn.execute(
+                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
+                    params![thought_id, entity_id],
+                )?;
+            }
         }
 
         Ok(())

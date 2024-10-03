@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 use chrono::{DateTime, Utc};
-use crate::model::entities::Entity;
+use crate::model::thoughts::Fragment::{EntityRef, Plain};
 use crate::model::thoughts::lexer::{ThoughtLexer, TokenValue};
 
 // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
@@ -224,10 +224,17 @@ mod lexer_tests {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Fragment {
+    Plain { text: String },
+    EntityRef { entity: crate::model::entities::Id, raw: String },
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Thought {
     pub raw: String,
-    pub entities: Vec<Entity>,
     pub added: DateTime<Utc>,
+
+    pub fragments: Vec<Fragment>,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -261,8 +268,8 @@ impl std::error::Error for Error {
 
 #[cfg(test)]
 mod thought_tests {
-    use crate::model::entities::Entity;
-    use crate::model::thoughts::{Error, RawThought, Thought};
+    use crate::model::thoughts::{Error, Fragment, RawThought, Thought};
+    use crate::model::thoughts::Fragment::Plain;
 
     #[test]
     fn from_input_simple() -> Result<(), Error> {
@@ -270,12 +277,18 @@ mod thought_tests {
         let thought = Thought::from_input("This is a thought".to_string(), added)?;
 
         assert_eq!(
-            Thought { raw: "This is a thought".to_string(), entities: vec![], added },
+            Thought {
+                raw: "This is a thought".to_string(),
+                fragments: vec![Plain { text: String::from("This is a thought") }
+                ],
+                added
+            },
             thought
         );
         Ok(())
     }
 
+    //noinspection DuplicatedCode
     #[test]
     fn from_input_with_entities() -> Result<(), Error> {
         let added = chrono::offset::Utc::now();
@@ -283,11 +296,14 @@ mod thought_tests {
 
         assert_eq!(
             Thought {
-                raw: "This is a [thought] with [entity] about [thought]".to_string(),
-                entities: vec![
-                    Entity { raw: "thought".to_string() },
-                    Entity { raw: "entity".to_string() },
-                    Entity { raw: "thought".to_string() },
+                raw: String::from("This is a [thought] with [entity] about [thought]"),
+                fragments: vec![
+                    Plain { text: String::from("This is a ") },
+                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Plain { text: String::from(" with ") },
+                    Fragment::EntityRef { entity: String::from("entity"), raw: String::from("entity") },
+                    Plain { text: String::from(" about ") },
+                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
                 ],
                 added,
             },
@@ -331,9 +347,9 @@ impl RawThought {
         RawThought { raw, added }
     }
 
-    fn as_thought(&self) -> Result<Thought> {
+    pub fn as_thought(&self) -> Result<Thought> {
         let lex = ThoughtLexer::new(self.raw.as_str());
-        let mut entities: Vec<Entity> = vec![];
+        let mut fragments = vec![];
         for token in lex {
             match token.value {
                 TokenValue::Error => {
@@ -341,7 +357,10 @@ impl RawThought {
                 }
                 TokenValue::EntityReference(entity) => {
                     let entity_name = &entity[1..entity.len() - 1];
-                    entities.push(Entity::from_raw(entity_name.to_string()))
+                    fragments.push(EntityRef { entity: entity_name.into(), raw: entity_name.into() });
+                }
+                TokenValue::Text(text) => {
+                    fragments.push(Plain { text: text.into() })
                 }
                 _ => {}
             }
@@ -349,7 +368,7 @@ impl RawThought {
         let thought = Thought {
             raw: self.raw.to_string(),
             added: self.added,
-            entities,
+            fragments,
         };
         Ok(thought)
     }
@@ -363,8 +382,8 @@ impl std::fmt::Display for RawThought {
 
 #[cfg(test)]
 mod raw_thought_tests {
-    use crate::model::entities::Entity;
-    use crate::model::thoughts::{Error, RawThought, Thought};
+    use crate::model::thoughts::{Error, Fragment, RawThought, Thought};
+    use crate::model::thoughts::Fragment::Plain;
 
     #[test]
     fn as_thought_simple() -> Result<(), Error> {
@@ -377,7 +396,9 @@ mod raw_thought_tests {
         assert_eq!(
             Thought {
                 raw: "This is a thought".to_string(),
-                entities: vec![],
+                fragments: vec![
+                    Plain { text: String::from("This is a thought") }
+                ],
                 added,
             },
             thought);
@@ -395,10 +416,13 @@ mod raw_thought_tests {
         assert_eq!(
             Thought {
                 raw: "This is a [thought] with [entity] about [thought]".to_string(),
-                entities: vec![
-                    Entity { raw: "thought".to_string() },
-                    Entity { raw: "entity".to_string() },
-                    Entity { raw: "thought".to_string() },
+                fragments: vec![
+                    Plain { text: String::from("This is a ") },
+                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Plain { text: String::from(" with ") },
+                    Fragment::EntityRef { entity: String::from("entity"), raw: String::from("entity") },
+                    Plain { text: String::from(" about ") },
+                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
                 ],
                 added,
             },

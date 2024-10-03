@@ -1,7 +1,7 @@
 use ratatui::style::Color;
 use std::collections::HashMap;
 use ratatui::style::palette::tailwind::{AMBER, BLUE, CYAN, EMERALD, FUCHSIA, GREEN, INDIGO, LIME, ORANGE, PINK, PURPLE, RED, SKY, TEAL, VIOLET, YELLOW};
-use crate::model::entities::EntityId;
+use crate::model::entities::Id as EntityId;
 
 /// Default color palette used for highlighting entities in thoughts
 const DEFAULT_ENTITY_COLORS: &[Color] = &[
