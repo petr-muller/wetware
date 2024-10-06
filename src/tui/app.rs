@@ -115,8 +115,8 @@ fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, kee
     for fragment in thought.fragments.iter() {
         let span = match fragment {
             Fragment::Plain { text } => { Span::from(text) }
-            Fragment::EntityRef { entity, raw } => {
-                Span::styled(raw, colorizer.assign_color(EntityId::from(entity)))
+            Fragment::EntityRef { entity, under, .. } => {
+                Span::styled(under, colorizer.assign_color(EntityId::from(entity)))
             }
         };
         items.push(span);
@@ -187,23 +187,43 @@ impl ThoughtsList {
 fn short_thoughts() -> IntoIter<Thought> {
     let v = vec![
         Thought {
-            raw: String::from("[Entity] does [Something] with [Entity]"),
+            raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
             added: DateTime::parse_from_rfc3339("2024-09-24T00:23:00+02:00").unwrap().to_utc(),
             fragments: vec![
-                Fragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
+                Fragment::EntityRef {
+                    raw: String::from("[Entity]"),
+                    entity: String::from("Entity"),
+                    under: String::from("Entity")
+                },
                 Fragment::Plain { text: String::from(" does ") },
-                Fragment::EntityRef { raw: String::from("Something"), entity: String::from("Something") },
+                Fragment::EntityRef {
+                    raw: String::from("[Something]"),
+                    entity: String::from("Something"),
+                    under: String::from("Something")
+                },
                 Fragment::Plain { text: String::from(" with ") },
-                Fragment::EntityRef { raw: String::from("ActuallyEntity"), entity: String::from("Entity") }
+                Fragment::EntityRef {
+                    raw: String::from("[ActuallyEntity](Entity)"),
+                    entity: String::from("Entity"),
+                    under: String::from("ActuallyEntity")
+                }
             ],
         },
         Thought {
-            raw: String::from("[Entity] is not [Another Entity]"),
+            raw: String::from("[Entity] is not [another entity](Another Entity)"),
             added: DateTime::parse_from_rfc3339("2024-09-24T00:25:00+02:00").unwrap().to_utc(),
             fragments: vec![
-                Fragment::EntityRef { raw: String::from("Entity"), entity: String::from("Entity") },
+                Fragment::EntityRef {
+                    raw: String::from("Entity"),
+                    entity: String::from("Entity"),
+                    under: String::from("Entity")
+                },
                 Fragment::Plain { text: String::from(" is not ") },
-                Fragment::EntityRef { raw: String::from("another entity"), entity: String::from("Another Entity") },
+                Fragment::EntityRef {
+                    raw: String::from("[another entity](Another Entity"),
+                    entity: String::from("Another Entity"),
+                    under: String::from("another entity"),
+                },
             ]
         },
     ];

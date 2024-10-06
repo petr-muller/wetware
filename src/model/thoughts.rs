@@ -8,12 +8,22 @@ use crate::model::thoughts::lexer::{ThoughtLexer, TokenValue};
 //               Eventually I may want to use [Logos](https://github.com/maciejhirsz/logos)
 mod lexer {
     #[derive(Debug, PartialEq)]
+    pub struct EntityReference<'source> {
+        /// entity refers to the part of the token identifying the actual referred entity
+        pub entity: &'source str,
+        /// under refers to the part of the token with the displayed string
+        pub under: &'source str,
+        /// raw refers to the full token
+        pub raw: &'source str,
+    }
+
+    #[derive(Debug, PartialEq)]
     pub enum TokenValue<'source> {
         EOF,
         Error,
 
         Text(&'source str),
-        EntityReference(&'source str),
+        EntityReference(EntityReference<'source>),
     }
 
     // Token is defined as a value at a byte offset in the input string
@@ -73,6 +83,16 @@ mod lexer {
             }
         }
 
+        /// assuming current character is a '(' immediately after a bare entity reference, consume
+        /// all characters until a matching ')' character, or a character that should result in
+        /// failure to parse an aliased entity reference: `[alias](entity)`
+        fn consume_entity_reference_for_alias(&mut self) {
+            self.scan_char();
+            while !(self.is_at_end() || self.c == ')' || self.c == '(') {
+                self.scan_char();
+            }
+        }
+
         fn scan_entity_reference(&mut self) -> Token<'source> {
             let start = self.ci;
             self.scan_char();
@@ -80,19 +100,46 @@ mod lexer {
                 self.scan_char();
             }
             match self.c {
-                '[' => {
-                    self.error_token(self.ci)
-                }
                 ']' => {
                     self.scan_char();
-                    Token {
-                        value: TokenValue::EntityReference(&self.input[start..self.ci]),
-                        position: start,
+                    if self.c == '(' {
+                        let alias_end = self.ci - 1;
+                        self.scan_char();
+                        let entity_start = self.ci;
+
+                        self.consume_entity_reference_for_alias();
+                        match self.c {
+                            ')' => {
+                                self.scan_char();
+                                Token {
+                                    value: TokenValue::EntityReference(
+                                        EntityReference {
+                                            entity: &self.input[entity_start..self.ci - 1],
+                                            under: &self.input[start + 1..alias_end],
+                                            raw: &self.input[start..self.ci],
+                                        }
+                                    ),
+                                    position: start,
+                                }
+                            }
+                            '(' => { self.error_token(self.ci) }
+                            _ => { self.error_token(entity_start) }
+                        }
+                    } else {
+                        Token {
+                            value: TokenValue::EntityReference(
+                                EntityReference {
+                                    entity: &self.input[start + 1..self.ci - 1],
+                                    under: &self.input[start + 1..self.ci - 1],
+                                    raw: &self.input[start..self.ci],
+                                },
+                            ),
+                            position: start,
+                        }
                     }
                 }
-                _ => {
-                    self.error_token(start)
-                }
+                '[' => self.error_token(self.ci),
+                _ => self.error_token(start),
             }
         }
 
@@ -150,27 +197,29 @@ mod lexer {
 
 #[cfg(test)]
 mod lexer_tests {
+    use crate::model::thoughts::lexer;
     use crate::model::thoughts::lexer::{ThoughtLexer, Token, TokenValue};
+    use crate::model::thoughts::lexer::TokenValue::EntityReference;
 
     // Assert that 'token' has a certain value and optionally a position
     macro_rules! assert_token {
             ($tok:expr, $wantval:expr, $wantpos:expr) => {
                 assert_eq!(
-                    $tok,
                     Token {
                         value: $wantval,
                         position: $wantpos
-                    }
+                    },
+                    $tok
                 );
             };
             ($tok:expr, $wantval:expr) => {
                 let tok = $tok;
                 assert_eq!(
-                    tok,
                     Token {
                         value: $wantval,
                         position: tok.position
-                    }
+                    },
+                    tok,
                 );
             };
         }
@@ -188,7 +237,25 @@ mod lexer_tests {
         let lex = ThoughtLexer::new("[some entity]");
         let tokens: Vec<Token> = lex.collect();
         assert_eq!(tokens.len(), 1);
-        assert_token!(tokens[0], TokenValue::EntityReference("[some entity]"), 0);
+        let expected = lexer::EntityReference {
+            entity: "some entity",
+            under: "some entity",
+            raw: "[some entity]",
+        };
+        assert_token!(tokens[0], EntityReference(expected), 0);
+    }
+
+    #[test]
+    fn aliased_entity_reference() {
+        let lex = ThoughtLexer::new("[alias](entity)");
+        let tokens: Vec<Token> = lex.collect();
+        assert_eq!(tokens.len(), 1);
+        let expected = lexer::EntityReference {
+            entity: "entity",
+            under: "alias",
+            raw: "[alias](entity)",
+        };
+        assert_token!(tokens[0], EntityReference(expected), 0);
     }
 
     #[test]
@@ -196,11 +263,16 @@ mod lexer_tests {
         let lex = ThoughtLexer::new("[entity] acted and [another entity] hates that [entity] did that");
         let tokens: Vec<Token> = lex.collect();
         assert_eq!(tokens.len(), 6);
-        assert_token!(tokens[0], TokenValue::EntityReference("[entity]"), 0);
+        let expected = lexer::EntityReference { entity: "entity", under: "entity", raw: "[entity]" };
+        assert_token!(tokens[0], EntityReference(expected), 0);
         assert_token!(tokens[1], TokenValue::Text(" acted and "), 8);
-        assert_token!(tokens[2], TokenValue::EntityReference("[another entity]"), 19);
+
+        let expected = lexer::EntityReference { entity: "another entity", under: "another entity", raw: "[another entity]" };
+        assert_token!(tokens[2], EntityReference(expected), 19);
         assert_token!(tokens[3], TokenValue::Text(" hates that "), 35);
-        assert_token!(tokens[4], TokenValue::EntityReference("[entity]"), 47);
+
+        let expected = lexer::EntityReference { entity: "entity", under: "entity", raw: "[entity]" };
+        assert_token!(tokens[4], EntityReference(expected), 47);
         assert_token!(tokens[5], TokenValue::Text(" did that"), 55);
     }
 
@@ -226,7 +298,11 @@ mod lexer_tests {
 #[derive(Debug, PartialEq)]
 pub enum Fragment {
     Plain { text: String },
-    EntityRef { entity: crate::model::entities::Id, raw: String },
+    EntityRef {
+        entity: crate::model::entities::Id,
+        under: String,
+        raw: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -299,11 +375,23 @@ mod thought_tests {
                 raw: String::from("This is a [thought] with [entity] about [thought]"),
                 fragments: vec![
                     Plain { text: String::from("This is a ") },
-                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Fragment::EntityRef {
+                        entity: String::from("thought"),
+                        under: String::from("thought"),
+                        raw: String::from("[thought]")
+                    },
                     Plain { text: String::from(" with ") },
-                    Fragment::EntityRef { entity: String::from("entity"), raw: String::from("entity") },
+                    Fragment::EntityRef {
+                        entity: String::from("entity"),
+                        under: String::from("entity"),
+                        raw: String::from("[entity]")
+                    },
                     Plain { text: String::from(" about ") },
-                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Fragment::EntityRef {
+                        entity: String::from("thought"),
+                        under: String::from("thought"),
+                        raw: String::from("[thought]")
+                    },
                 ],
                 added,
             },
@@ -355,9 +443,12 @@ impl RawThought {
                 TokenValue::Error => {
                     return Err(Error { message: format!("invalid token at position {}", token.position) });
                 }
-                TokenValue::EntityReference(entity) => {
-                    let entity_name = &entity[1..entity.len() - 1];
-                    fragments.push(EntityRef { entity: entity_name.into(), raw: entity_name.into() });
+                TokenValue::EntityReference(entity_ref) => {
+                    fragments.push(EntityRef {
+                        entity: entity_ref.entity.into(),
+                        under: entity_ref.under.into(),
+                        raw: entity_ref.raw.into(),
+                    });
                 }
                 TokenValue::Text(text) => {
                     fragments.push(Plain { text: text.into() })
@@ -409,7 +500,7 @@ mod raw_thought_tests {
     fn as_thought_with_entities() -> Result<(), Error> {
         let added = chrono::offset::Utc::now();
         let raw = RawThought {
-            raw: "This is a [thought] with [entity] about [thought]".to_string(),
+            raw: String::from("This is a [thought] with [entity] about [thought]"),
             added,
         };
         let thought = raw.as_thought()?;
@@ -418,11 +509,23 @@ mod raw_thought_tests {
                 raw: "This is a [thought] with [entity] about [thought]".to_string(),
                 fragments: vec![
                     Plain { text: String::from("This is a ") },
-                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Fragment::EntityRef {
+                        entity: String::from("thought"),
+                        under: String::from("thought"),
+                        raw: String::from("[thought]")
+                    },
                     Plain { text: String::from(" with ") },
-                    Fragment::EntityRef { entity: String::from("entity"), raw: String::from("entity") },
+                    Fragment::EntityRef {
+                        entity: String::from("entity"),
+                        under: String::from("entity"),
+                        raw: String::from("[entity]")
+                    },
                     Plain { text: String::from(" about ") },
-                    Fragment::EntityRef { entity: String::from("thought"), raw: String::from("thought") },
+                    Fragment::EntityRef {
+                        entity: String::from("thought"),
+                        under: String::from("thought"),
+                        raw: String::from("[thought]")
+                    },
                 ],
                 added,
             },
