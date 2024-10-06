@@ -117,4 +117,16 @@ mod integration_cli_add {
 
         Ok(())
     }
+    #[test]
+    fn adds_thought_with_aliased_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought about [subject](Subject With Complicated Name)")?;
+        add.assert().success();
+
+        let entities_rows = wet.entities_rows()?;
+        assert_eq!(entities_rows.len(), 1);
+        assert_eq!(entities_rows[0].name, "Subject With Complicated Name");
+
+        Ok(())
+    }
 }
