@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0](https://github.com/petr-muller/wetware/compare/v0.3.0...v0.4.0) (2024-10-07)
+
+
+### Features
+
+* **thoughts:** allow aliased entity references ([#94](https://github.com/petr-muller/wetware/issues/94)) ([10fdff3](https://github.com/petr-muller/wetware/commit/10fdff3ce6edaa02b142da229f67fd4b9f954548))
+* thougts and tui share backend ([#93](https://github.com/petr-muller/wetware/issues/93)) ([8d0cb95](https://github.com/petr-muller/wetware/commit/8d0cb958a3faa59f833611437099a1e8a1f0b4f9))
+* **tui:** extract tui to module, pass tests ([#89](https://github.com/petr-muller/wetware/issues/89)) ([3f91205](https://github.com/petr-muller/wetware/commit/3f9120548e66cb1ceee9e5a4ba500be1758ee695))
+* **tui:** simple persisten entity-&gt;color mapper ([#85](https://github.com/petr-muller/wetware/issues/85)) ([cf032f0](https://github.com/petr-muller/wetware/commit/cf032f01f068e492f0cf405bb22336004184b8ec))
+
 ## [0.3.0](https://github.com/petr-muller/wetware/compare/v0.2.0...v0.3.0) (2024-03-29)
 
 
