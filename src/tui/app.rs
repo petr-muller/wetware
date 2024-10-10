@@ -107,9 +107,9 @@ impl Widget for &mut Thoughts {
 
 fn make_raw_item(thought: &Thought, keep_utc: bool) -> String {
     let added = if keep_utc {
-        thought.added.format("%Y %b %d %H:%M").to_string()
+        thought.added.format("%Y %b %d").to_string()
     } else {
-        thought.added.with_timezone(&Local).format("%Y %b %d %H:%M").to_string()
+        thought.added.with_timezone(&Local).format("%Y %b %d").to_string()
     };
 
     let mut line = added + " > ";
@@ -125,9 +125,9 @@ fn make_raw_item(thought: &Thought, keep_utc: bool) -> String {
 
 fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, keep_utc: bool) -> ListItem<'a> {
     let added = if keep_utc {
-        thought.added.format("%Y %b %d %H:%M").to_string()
+        thought.added.format("%Y %b %d").to_string()
     } else {
-        thought.added.with_timezone(&Local).format("%Y %b %d %H:%M").to_string()
+        thought.added.with_timezone(&Local).format("%Y %b %d").to_string()
     };
     let mut items = vec![
         Span::styled(added, ORANGE.c500),
@@ -156,7 +156,7 @@ fn plain_fragment_match() {
             Fragment::Plain { text: String::from("raw") }
         ],
     };
-    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
 }
 
 #[cfg(test)]
@@ -173,7 +173,7 @@ fn entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
 }
 
 #[cfg(test)]
@@ -190,7 +190,7 @@ fn aliased_entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
 }
 
 #[cfg(test)]
@@ -205,7 +205,7 @@ fn combined_fragments_match() {
             Fragment::EntityRef { entity: String::from("d"), under: String::from("d"), raw: String::from("[d]") }
         ],
     };
-    assert_eq!("2021 Feb 03 04:05 > a c d", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > a c d", make_raw_item(&thought, true));
 }
 
 
@@ -353,21 +353,21 @@ mod thoughts_list_tests {
 
     #[test]
     fn render_simple_thoughts() {
-        let line1 = "  2024 Sep 30 22:11 > First thought";
-        let line1_selected = "* 2024 Sep 30 22:11 > First thought";
+        let line1 = "  2024 Sep 30 > First thought";
+        let line1_selected = "* 2024 Sep 30 > First thought";
 
-        let line2 = "  2024 Sep 30 22:12 > Second thought";
-        let line2_selected = "* 2024 Sep 30 22:12 > Second thought";
+        let line2 = "  2024 Sep 30 > Second thought";
+        let line2_selected = "* 2024 Sep 30 > Second thought";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);
 
         let date_style = Style::from(ORANGE.c500);
-        expected_start.set_style(Rect::new(2, 0, 17, 2), date_style);
-        expected_after_next.set_style(Rect::new(2, 0, 17, 2), date_style);
+        expected_start.set_style(Rect::new(2, 0, 11, 2), date_style);
+        expected_after_next.set_style(Rect::new(2, 0, 11, 2), date_style);
 
         let mut tl = ThoughtsList::populated(no_ref_thoughts().collect()).in_utc();
-        let mut buf = Buffer::empty(Rect::new(0, 0, 36, 2));
+        let mut buf = Buffer::empty(Rect::new(0, 0, 30, 2));
 
         tl.render(buf.area, &mut buf);
         assert_eq!(expected_start, buf);
@@ -392,17 +392,17 @@ mod thoughts_list_tests {
     #[test]
     fn render_thoughts_with_entities() {
         let mut tl = ThoughtsList::populated(short_thoughts().collect()).in_utc();
-        let mut buf = Buffer::empty(Rect::new(0, 0, 65, 2));
+        let mut buf = Buffer::empty(Rect::new(0, 0, 59, 2));
 
         tl.render(buf.area, &mut buf);
 
-        let line1 = "* 2024 Sep 23 22:23 > Entity does Something with ActuallyEntity  ";
-        let line2 = "  2024 Sep 23 22:25 > Entity is not another entity               ";
+        let line1 = "* 2024 Sep 23 > Entity does Something with ActuallyEntity  ";
+        let line2 = "  2024 Sep 23 > Entity is not another entity               ";
 
         let mut expected = Buffer::with_lines(vec![line1, line2]);
 
         let date_style = Style::from(ORANGE.c500);
-        expected.set_style(Rect::new(2, 0, 17, 2), date_style);
+        expected.set_style(Rect::new(2, 0, 11, 2), date_style);
 
         let entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Entity")));
 
@@ -437,20 +437,20 @@ mod thoughts_tests {
         let mut tui = Thoughts::populated(no_ref_thoughts().collect());
         tui.in_utc();
 
-        let line1 = "  2024 Sep 30 22:11 > First thought";
-        let line1_selected = "* 2024 Sep 30 22:11 > First thought";
+        let line1 = "  2024 Sep 30 > First thought";
+        let line1_selected = "* 2024 Sep 30 > First thought";
 
-        let line2 = "  2024 Sep 30 22:12 > Second thought";
-        let line2_selected = "* 2024 Sep 30 22:12 > Second thought";
+        let line2 = "  2024 Sep 30 > Second thought";
+        let line2_selected = "* 2024 Sep 30 > Second thought";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);
 
         let date_style = Style::from(ORANGE.c500);
-        expected_start.set_style(Rect::new(2, 0, 17, 2), date_style);
-        expected_after_next.set_style(Rect::new(2, 0, 17, 2), date_style);
+        expected_start.set_style(Rect::new(2, 0, 11, 2), date_style);
+        expected_after_next.set_style(Rect::new(2, 0, 11, 2), date_style);
 
-        let mut buf = Buffer::empty(Rect::new(0, 0, 36, 2));
+        let mut buf = Buffer::empty(Rect::new(0, 0, 30, 2));
 
         tui.render(buf.area, &mut buf);
         assert_eq!(expected_start, buf);
