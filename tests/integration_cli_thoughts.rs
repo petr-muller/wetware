@@ -18,7 +18,7 @@ mod integration_cli_thoughts {
         let mut third_add = wet.add("This is another thought about [another subject]")?;
         third_add.assert().success();
 
-        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} > ";
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} > ";
         let expected_output = format!("{0}This is a thought about subject\n{0}This is another thought about subject\n{0}This is another thought about another subject\n", date_prefix_re);
         let mut thoughts = wet.thoughts()?;
         thoughts.assert().success().stdout(predicate::str::is_match(expected_output)?);
@@ -40,7 +40,7 @@ mod integration_cli_thoughts {
         third_add.assert().success();
 
 
-        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} > ";
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} > ";
         let expected_output = format!("{0}This is a thought about subject\n{0}This is another thought about subject\n", date_prefix_re);
         let mut thoughts = wet.thoughts()?;
         thoughts.arg("--on=subject")
