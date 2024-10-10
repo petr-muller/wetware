@@ -9,7 +9,7 @@ use ratatui::style::palette::tailwind::ORANGE;
 use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
-
+use std::io::Write;
 #[allow(unused_imports)]
 use std::ops::Sub;
 #[allow(unused_imports)]
@@ -29,8 +29,7 @@ pub struct Thoughts {
 impl Thoughts {}
 
 impl Thoughts {
-    /// runs application main loop until the user quits
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn interactive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.should_exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?
@@ -38,10 +37,15 @@ impl Thoughts {
         Ok(())
     }
 
-    /// runs application main loop until the user quits
     pub fn noninteractive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         self.view.interactive = false;
         terminal.draw(|frame| self.draw(frame))?;
+        Ok(())
+    }
+
+    pub fn raw(&mut self) -> io::Result<()> {
+        self.view.interactive = false;
+        self.view.raw();
         Ok(())
     }
 
@@ -101,6 +105,24 @@ impl Widget for &mut Thoughts {
     }
 }
 
+fn make_raw_item(thought: &Thought, keep_utc: bool) -> String {
+    let added = if keep_utc {
+        thought.added.format("%Y %b %d %H:%M").to_string()
+    } else {
+        thought.added.with_timezone(&Local).format("%Y %b %d %H:%M").to_string()
+    };
+
+    let mut line = added + " > ";
+    for fragment in thought.fragments.iter() {
+        match fragment {
+            Fragment::Plain { text } => { line = line + text }
+            Fragment::EntityRef { under, .. } => { line = line + under }
+        };
+    }
+
+    line
+}
+
 fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, keep_utc: bool) -> ListItem<'a> {
     let added = if keep_utc {
         thought.added.format("%Y %b %d %H:%M").to_string()
@@ -122,6 +144,68 @@ fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, kee
         items.push(span);
     }
     ListItem::new(Line::from(items))
+}
+
+#[cfg(test)]
+#[test]
+fn plain_fragment_match() {
+    let thought = Thought {
+        raw: "raw".to_string(),
+        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        fragments: vec![
+            Fragment::Plain { text: String::from("raw") }
+        ],
+    };
+    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+}
+
+#[cfg(test)]
+#[test]
+fn entity_fragment_match() {
+    let thought = Thought {
+        raw: "[raw]".to_string(),
+        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        fragments: vec![
+            Fragment::EntityRef {
+                entity: String::from("raw"),
+                under: String::from("raw"),
+                raw: String::from("[raw]"),
+            }
+        ],
+    };
+    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+}
+
+#[cfg(test)]
+#[test]
+fn aliased_entity_fragment_match() {
+    let thought = Thought {
+        raw: "[raw](entity)".to_string(),
+        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        fragments: vec![
+            Fragment::EntityRef {
+                entity: String::from("entity"),
+                under: String::from("raw"),
+                raw: String::from("[raw](entity)"),
+            }
+        ],
+    };
+    assert_eq!("2021 Feb 03 04:05 > raw", make_raw_item(&thought, true));
+}
+
+#[cfg(test)]
+#[test]
+fn combined_fragments_match() {
+    let thought = Thought {
+        raw: "[a](b) c [d]".to_string(),
+        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        fragments: vec![
+            Fragment::EntityRef { entity: String::from("b"), under: String::from("a"), raw: String::from("[a](b)") },
+            Fragment::Plain { text: String::from(" c ") },
+            Fragment::EntityRef { entity: String::from("d"), under: String::from("d"), raw: String::from("[d]") }
+        ],
+    };
+    assert_eq!("2021 Feb 03 04:05 > a c d", make_raw_item(&thought, true));
 }
 
 
@@ -180,6 +264,13 @@ impl ThoughtsList {
         };
 
         StatefulWidget::render(list, area, buf, &mut self.thoughts_tui);
+    }
+
+    fn raw(&mut self) {
+        for item in self.thoughts.iter() {
+            println!("{}", make_raw_item(item, self.keep_utc));
+        }
+        io::stdout().flush().unwrap();
     }
 }
 
