@@ -4,6 +4,7 @@ mod tui;
 mod store;
 mod model;
 
+use std::io::IsTerminal;
 use chrono::{DateTime, Utc};
 use clap::{Args, command, Parser, Subcommand};
 use ratatui::{TerminalOptions, Viewport};
@@ -114,18 +115,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 thoughts.push(item.as_thought().unwrap())
             }
 
-            let output_size = match u16::try_from(thoughts.len()) {
-                Ok(x) => { x }
-                Err(_) => { u16::MAX }
-            };
+            let tui_result;
+            // Hypothetically can work without TTY after crossterm-rs/crossterm#919 is fixed?
+            if std::io::stdout().is_terminal() {
+                let output_size = match u16::try_from(thoughts.len()) {
+                    Ok(x) => { x }
+                    Err(_) => { u16::MAX }
+                };
 
-            let mut terminal = ratatui::init_with_options(TerminalOptions {
-                viewport: Viewport::Inline(output_size),
-            });
+                // Does not work without TTY because of the following issue:
+                //
+                // cursor::position() fails when piping stdout:
+                // https://github.com/crossterm-rs/crossterm/issues/919
+                let mut terminal = ratatui::init_with_options(TerminalOptions {
+                    viewport: Viewport::Inline(output_size),
+                });
 
+                tui_result = Thoughts::populated(thoughts).noninteractive(&mut terminal);
+                ratatui::restore();
 
-            let tui_result = Thoughts::populated(thoughts).noninteractive(&mut terminal);
-            ratatui::restore();
+            } else {
+                tui_result = Thoughts::populated(thoughts).raw();
+            }
             return match tui_result {
                 Ok(()) => Ok(()),
                 Err(e) => {
@@ -161,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
 
-            let tui_result = Thoughts::populated(thoughts).run(&mut terminal);
+            let tui_result = Thoughts::populated(thoughts).interactive(&mut terminal);
             ratatui::restore();
             return match tui_result {
                 Ok(()) => Ok(()),

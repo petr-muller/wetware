@@ -6,8 +6,6 @@ mod integration_cli_thoughts {
 
     // TODO(muller): Handle empty database?
 
-    // TODO(muller): Stopped working after Ratatui
-    #[ignore]
     #[test]
     fn shows_all_thoughts() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
@@ -20,15 +18,15 @@ mod integration_cli_thoughts {
         let mut third_add = wet.add("This is another thought about [another subject]")?;
         third_add.assert().success();
 
-        let expected_output = "This is a thought about [subject]\nThis is another thought about [subject]\nThis is another thought about [another subject]\n";
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} > ";
+        let expected_output = format!("{0}This is a thought about subject\n{0}This is another thought about subject\n{0}This is another thought about another subject\n", date_prefix_re);
         let mut thoughts = wet.thoughts()?;
-        thoughts.assert().success().stdout(predicate::eq(expected_output));
+        thoughts.assert().success().stdout(predicate::str::is_match(expected_output)?);
 
         Ok(())
     }
 
-    // TODO(muller): Stopped working after Ratatui
-    #[ignore]
+
     #[test]
     fn shows_thoughts_on_entity() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
@@ -42,12 +40,13 @@ mod integration_cli_thoughts {
         third_add.assert().success();
 
 
-        let expected_output = "This is a thought about [subject]\nThis is another thought about [subject]\n";
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2} \d{2}:\d{2} > ";
+        let expected_output = format!("{0}This is a thought about subject\n{0}This is another thought about subject\n", date_prefix_re);
         let mut thoughts = wet.thoughts()?;
         thoughts.arg("--on=subject")
             .assert()
             .success()
-            .stdout(predicate::eq(expected_output));
+            .stdout(predicate::str::is_match(expected_output)?);
 
         Ok(())
     }
