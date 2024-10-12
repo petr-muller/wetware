@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use crate::model::thoughts::Fragment::{EntityRef, Plain};
 use crate::model::thoughts::lexer::{ThoughtLexer, TokenValue};
 
@@ -308,7 +308,7 @@ pub enum Fragment {
 #[derive(Debug, PartialEq)]
 pub struct Thought {
     pub raw: String,
-    pub added: DateTime<Utc>,
+    pub added: NaiveDate,
 
     pub fragments: Vec<Fragment>,
 }
@@ -316,7 +316,7 @@ pub struct Thought {
 type Result<T> = std::result::Result<T, Error>;
 
 impl Thought {
-    pub fn from_input(raw: String, added: DateTime<Utc>) -> Result<Self> {
+    pub fn from_input(raw: String, added: NaiveDate) -> Result<Self> {
         let raw_thought = RawThought { raw, added };
         let thought = raw_thought.as_thought()?;
 
@@ -349,7 +349,7 @@ mod thought_tests {
 
     #[test]
     fn from_input_simple() -> Result<(), Error> {
-        let added = chrono::offset::Utc::now();
+        let added = chrono::Local::now().date_naive();
         let thought = Thought::from_input("This is a thought".to_string(), added)?;
 
         assert_eq!(
@@ -367,7 +367,7 @@ mod thought_tests {
     //noinspection DuplicatedCode
     #[test]
     fn from_input_with_entities() -> Result<(), Error> {
-        let added = chrono::offset::Utc::now();
+        let added = chrono::Local::now().date_naive();
         let thought = Thought::from_input("This is a [thought] with [entity] about [thought]".to_string(), added)?;
 
         assert_eq!(
@@ -401,7 +401,7 @@ mod thought_tests {
 
     #[test]
     fn from_store() -> Result<(), Error> {
-        let added = chrono::offset::Utc::now();
+        let added = chrono::Local::now().date_naive();
         let simple = RawThought::from_store("This is a thought".to_string(), added);
         assert_eq!(
             RawThought {
@@ -427,11 +427,11 @@ mod thought_tests {
 #[derive(Debug, PartialEq)]
 pub struct RawThought {
     raw: String,
-    added: DateTime<Utc>,
+    added: NaiveDate,
 }
 
 impl RawThought {
-    pub fn from_store(raw: String, added: DateTime<Utc>) -> RawThought {
+    pub fn from_store(raw: String, added: NaiveDate) -> RawThought {
         RawThought { raw, added }
     }
 
@@ -478,7 +478,7 @@ mod raw_thought_tests {
 
     #[test]
     fn as_thought_simple() -> Result<(), Error> {
-        let added = chrono::offset::Utc::now();
+        let added = chrono::Local::now().date_naive();
         let raw = RawThought {
             raw: "This is a thought".to_string(),
             added,
@@ -498,7 +498,7 @@ mod raw_thought_tests {
 
     #[test]
     fn as_thought_with_entities() -> Result<(), Error> {
-        let added = chrono::offset::Utc::now();
+        let added = chrono::Local::now().date_naive();
         let raw = RawThought {
             raw: String::from("This is a [thought] with [entity] about [thought]"),
             added,

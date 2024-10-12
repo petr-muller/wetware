@@ -5,7 +5,7 @@ mod store;
 mod model;
 
 use std::io::IsTerminal;
-use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use clap::{Args, command, Parser, Subcommand};
 use ratatui::{TerminalOptions, Viewport};
 use crate::model::thoughts::Thought;
@@ -28,8 +28,8 @@ enum Commands {
     Add {
         /// The thought to add
         thought: String,
-        #[arg(short, long)]
-        datetime: Option<DateTime<Utc>>,
+        #[arg(long)]
+        date: Option<NaiveDate>,
     },
     /// List thoughts
     #[command(name = "thoughts")]
@@ -133,7 +133,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tui_result = Thoughts::populated(thoughts).noninteractive(&mut terminal);
                 ratatui::restore();
-
             } else {
                 tui_result = Thoughts::populated(thoughts).raw();
             }
@@ -182,7 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
         }
-        Commands::Add { thought, datetime } => {
+        Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
             let store = match store::sqlite::open(db) {
                 Ok(store) => store,
@@ -192,7 +191,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let now = datetime.unwrap_or_else(Utc::now);
+            let now = date.unwrap_or(chrono::Local::now().date_naive());
             let thought = match Thought::from_input(thought, now) {
                 Ok(thought) => thought,
                 Err(e) => {

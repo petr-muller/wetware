@@ -1,7 +1,6 @@
 pub mod helpers;
 
 mod integration_cli_add {
-    use chrono::Duration;
     use predicates::prelude::predicate;
     use crate::helpers::TestWet;
 
@@ -44,17 +43,17 @@ mod integration_cli_add {
         let thought = &thought_rows[0];
         assert_eq!(thought.thought, "This is a thought with a default date");
 
-        let age = chrono::Utc::now() - thought.datetime;
-        assert!(!age.is_zero());
-        assert!(age < Duration::try_seconds(1).unwrap());
+        assert_eq!(thought.date, chrono::Local::now().date_naive());
 
         Ok(())
     }
 
+    // Work only with (naive) dates for now
+    #[ignore]
     #[test]
-    fn stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_given_datetime() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
-        let mut add = wet.add("This is a thought with a given date")?;
+        let mut add = wet.add("This is a thought with a given datetime")?;
         add.arg("--datetime")
             .arg("2023-10-30T00:02:42+01:00")
             .assert()
@@ -65,8 +64,62 @@ mod integration_cli_add {
         assert_eq!(thought_rows.len(), 1);
         let thought = &thought_rows[0];
         assert_eq!(thought.thought, "This is a thought with a given date");
-        let expected = chrono::DateTime::parse_from_rfc3339("2023-10-29T23:02:42+00:00").unwrap();
-        assert_eq!(thought.datetime, expected);
+        let expected = chrono::NaiveDate::parse_from_str("2023-10-29", "%Y-%m-%d")?;
+        assert_eq!(thought.date, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought with a date")?;
+        add.arg("--date")
+            .arg("2023-10-12")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        let expected = chrono::NaiveDate::parse_from_str("2023-10-12", "%Y-%m-%d")?;
+        assert_eq!(expected, thought.date);
+
+        Ok(())
+    }
+
+    #[test]
+    fn stores_thought_in_database_with_given_convenient_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought with a convenient date")?;
+        add.arg("--date")
+            .arg("2024 Oct 12")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        let expected = chrono::NaiveDate::parse_from_str("2024-10-12", "%Y-%m-%d")?;
+        assert_eq!(thought.date, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn stores_thought_in_database_with_given_convenient_date_without_year() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought with a convenient date without year")?;
+        add.arg("--date")
+            .arg("Oct 12")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        let expected = chrono::NaiveDate::parse_from_str("2222-10-12", "%Y-%m-%d")?;
+        assert_eq!(thought.date, expected);
 
         Ok(())
     }

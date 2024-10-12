@@ -10,12 +10,10 @@ use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 use std::io::Write;
-#[allow(unused_imports)]
-use std::ops::Sub;
-#[allow(unused_imports)]
+#[cfg(test)]
 use std::vec::IntoIter;
-#[allow(unused_imports)]
-use chrono::{DateTime, Local};
+#[cfg(test)]
+use chrono::NaiveDate;
 use crate::model::entities::Id as EntityId;
 use crate::model::thoughts::{Fragment, Thought};
 
@@ -92,11 +90,6 @@ impl Thoughts {
             should_exit: false,
         }
     }
-
-    #[cfg(test)]
-    fn in_utc(&mut self) {
-        self.view.keep_utc = true
-    }
 }
 
 impl Widget for &mut Thoughts {
@@ -105,12 +98,8 @@ impl Widget for &mut Thoughts {
     }
 }
 
-fn make_raw_item(thought: &Thought, keep_utc: bool) -> String {
-    let added = if keep_utc {
-        thought.added.format("%Y %b %d").to_string()
-    } else {
-        thought.added.with_timezone(&Local).format("%Y %b %d").to_string()
-    };
+fn make_raw_item(thought: &Thought) -> String {
+    let added = thought.added.format("%Y %b %d").to_string();
 
     let mut line = added + " > ";
     for fragment in thought.fragments.iter() {
@@ -123,12 +112,9 @@ fn make_raw_item(thought: &Thought, keep_utc: bool) -> String {
     line
 }
 
-fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, keep_utc: bool) -> ListItem<'a> {
-    let added = if keep_utc {
-        thought.added.format("%Y %b %d").to_string()
-    } else {
-        thought.added.with_timezone(&Local).format("%Y %b %d").to_string()
-    };
+fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer) -> ListItem<'a> {
+    let added = thought.added.format("%Y %b %d").to_string();
+
     let mut items = vec![
         Span::styled(added, ORANGE.c500),
         Span::from(" > "),
@@ -151,12 +137,12 @@ fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer, kee
 fn plain_fragment_match() {
     let thought = Thought {
         raw: "raw".to_string(),
-        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::Plain { text: String::from("raw") }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
 }
 
 #[cfg(test)]
@@ -164,7 +150,7 @@ fn plain_fragment_match() {
 fn entity_fragment_match() {
     let thought = Thought {
         raw: "[raw]".to_string(),
-        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::EntityRef {
                 entity: String::from("raw"),
@@ -173,7 +159,7 @@ fn entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
 }
 
 #[cfg(test)]
@@ -181,7 +167,7 @@ fn entity_fragment_match() {
 fn aliased_entity_fragment_match() {
     let thought = Thought {
         raw: "[raw](entity)".to_string(),
-        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        added: NaiveDate::parse_from_str("2021-02-03","%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::EntityRef {
                 entity: String::from("entity"),
@@ -190,7 +176,7 @@ fn aliased_entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
 }
 
 #[cfg(test)]
@@ -198,14 +184,14 @@ fn aliased_entity_fragment_match() {
 fn combined_fragments_match() {
     let thought = Thought {
         raw: "[a](b) c [d]".to_string(),
-        added: DateTime::parse_from_rfc3339("2021-02-03T04:05:06+00:00").unwrap().to_utc(),
+        added: NaiveDate::parse_from_str("2021-02-03","%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::EntityRef { entity: String::from("b"), under: String::from("a"), raw: String::from("[a](b)") },
             Fragment::Plain { text: String::from(" c ") },
             Fragment::EntityRef { entity: String::from("d"), under: String::from("d"), raw: String::from("[d]") }
         ],
     };
-    assert_eq!("2021 Feb 03 > a c d", make_raw_item(&thought, true));
+    assert_eq!("2021 Feb 03 > a c d", make_raw_item(&thought));
 }
 
 
@@ -216,7 +202,6 @@ struct ThoughtsList {
 
     entity_colorizer: EntityColorizer,
 
-    keep_utc: bool,
     interactive: bool,
 }
 
@@ -227,16 +212,8 @@ impl ThoughtsList {
             thoughts,
             thoughts_tui: ListState::default().with_selected(Some(0)),
             entity_colorizer: EntityColorizer::default(),
-            keep_utc: false,
             interactive: true,
         }
-    }
-
-    #[cfg(test)]
-    fn in_utc(self) -> Self {
-        let mut tl = self;
-        tl.keep_utc = true;
-        tl
     }
 
     fn select_next(&mut self) {
@@ -252,7 +229,7 @@ impl ThoughtsList {
             .thoughts
             .iter()
             .map(|thought| {
-                make_list_item(thought, &mut self.entity_colorizer, self.keep_utc)
+                make_list_item(thought, &mut self.entity_colorizer)
             }).collect();
 
         let list = if self.interactive {
@@ -268,7 +245,7 @@ impl ThoughtsList {
 
     fn raw(&mut self) {
         for item in self.thoughts.iter() {
-            println!("{}", make_raw_item(item, self.keep_utc));
+            println!("{}", make_raw_item(item));
         }
         io::stdout().flush().unwrap();
     }
@@ -279,7 +256,7 @@ fn short_thoughts() -> IntoIter<Thought> {
     let v = vec![
         Thought {
             raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
-            added: DateTime::parse_from_rfc3339("2024-09-24T00:23:00+02:00").unwrap().to_utc(),
+            added: NaiveDate::parse_from_str("2023-08-23", "%Y-%m-%d").unwrap(),
             fragments: vec![
                 Fragment::EntityRef {
                     raw: String::from("[Entity]"),
@@ -302,7 +279,7 @@ fn short_thoughts() -> IntoIter<Thought> {
         },
         Thought {
             raw: String::from("[Entity] is not [another entity](Another Entity)"),
-            added: DateTime::parse_from_rfc3339("2024-09-24T00:25:00+02:00").unwrap().to_utc(),
+            added: NaiveDate::parse_from_str("2024-09-24", "%Y-%m-%d").unwrap(),
             fragments: vec![
                 Fragment::EntityRef {
                     raw: String::from("Entity"),
@@ -326,12 +303,12 @@ fn no_ref_thoughts() -> IntoIter<Thought> {
     let v = vec![
         Thought {
             raw: String::from("First thought"),
-            added: DateTime::parse_from_rfc3339("2024-10-01T00:11:00+02:00").unwrap().to_utc(),
+            added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
             fragments: vec![Fragment::Plain { text: String::from("First thought") }],
         },
         Thought {
             raw: String::from("Second thought"),
-            added: DateTime::parse_from_rfc3339("2024-10-01T00:12:00+02:00").unwrap().to_utc(),
+            added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
             fragments: vec![Fragment::Plain { text: String::from("Second thought") }],
         },
     ];
@@ -353,11 +330,11 @@ mod thoughts_list_tests {
 
     #[test]
     fn render_simple_thoughts() {
-        let line1 = "  2024 Sep 30 > First thought";
-        let line1_selected = "* 2024 Sep 30 > First thought";
+        let line1 = "  2024 Oct 01 > First thought";
+        let line1_selected = "* 2024 Oct 01 > First thought";
 
-        let line2 = "  2024 Sep 30 > Second thought";
-        let line2_selected = "* 2024 Sep 30 > Second thought";
+        let line2 = "  2024 Oct 02 > Second thought";
+        let line2_selected = "* 2024 Oct 02 > Second thought";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);
@@ -366,7 +343,7 @@ mod thoughts_list_tests {
         expected_start.set_style(Rect::new(2, 0, 11, 2), date_style);
         expected_after_next.set_style(Rect::new(2, 0, 11, 2), date_style);
 
-        let mut tl = ThoughtsList::populated(no_ref_thoughts().collect()).in_utc();
+        let mut tl = ThoughtsList::populated(no_ref_thoughts().collect());
         let mut buf = Buffer::empty(Rect::new(0, 0, 30, 2));
 
         tl.render(buf.area, &mut buf);
@@ -391,13 +368,13 @@ mod thoughts_list_tests {
 
     #[test]
     fn render_thoughts_with_entities() {
-        let mut tl = ThoughtsList::populated(short_thoughts().collect()).in_utc();
+        let mut tl = ThoughtsList::populated(short_thoughts().collect());
         let mut buf = Buffer::empty(Rect::new(0, 0, 59, 2));
 
         tl.render(buf.area, &mut buf);
 
-        let line1 = "* 2024 Sep 23 > Entity does Something with ActuallyEntity  ";
-        let line2 = "  2024 Sep 23 > Entity is not another entity               ";
+        let line1 = "* 2023 Aug 23 > Entity does Something with ActuallyEntity  ";
+        let line2 = "  2024 Sep 24 > Entity is not another entity               ";
 
         let mut expected = Buffer::with_lines(vec![line1, line2]);
 
@@ -435,13 +412,11 @@ mod thoughts_tests {
     #[test]
     fn render_simple_thoughts() -> io::Result<()> {
         let mut tui = Thoughts::populated(no_ref_thoughts().collect());
-        tui.in_utc();
+        let line1 = "  2024 Oct 01 > First thought";
+        let line1_selected = "* 2024 Oct 01 > First thought";
 
-        let line1 = "  2024 Sep 30 > First thought";
-        let line1_selected = "* 2024 Sep 30 > First thought";
-
-        let line2 = "  2024 Sep 30 > Second thought";
-        let line2_selected = "* 2024 Sep 30 > Second thought";
+        let line2 = "  2024 Oct 02 > Second thought";
+        let line2_selected = "* 2024 Oct 02 > Second thought";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);

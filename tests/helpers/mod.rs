@@ -1,9 +1,10 @@
 use assert_cmd::Command;
+use chrono::NaiveDate;
 
 pub struct ThoughtsTableRow {
     pub id: isize,
     pub thought: String,
-    pub datetime: chrono::DateTime<chrono::Utc>,
+    pub date: NaiveDate,
 }
 
 pub struct EntitiesTableRow {
@@ -61,7 +62,7 @@ impl TestWet {
         let rows = stmt.query_map([], |row| Ok(ThoughtsTableRow {
             id: row.get(0)?,
             thought: row.get(1)?,
-            datetime: row.get(2)?,
+            date: row.get(2)?,
         }))?;
         let mut thoughts = Vec::new();
         for thought in rows {
