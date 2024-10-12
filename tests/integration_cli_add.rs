@@ -1,6 +1,7 @@
 pub mod helpers;
 
 mod integration_cli_add {
+    use chrono::{Datelike, Local};
     use predicates::prelude::predicate;
     use crate::helpers::TestWet;
 
@@ -93,14 +94,14 @@ mod integration_cli_add {
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought with a convenient date")?;
         add.arg("--date")
-            .arg("2024 Oct 12")
+            .arg("Oct 12, 2022")
             .assert()
             .success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(thought_rows.len(), 1);
         let thought = &thought_rows[0];
-        let expected = chrono::NaiveDate::parse_from_str("2024-10-12", "%Y-%m-%d")?;
+        let expected = chrono::NaiveDate::parse_from_str("2022-10-12", "%Y-%m-%d")?;
         assert_eq!(thought.date, expected);
 
         Ok(())
@@ -118,7 +119,8 @@ mod integration_cli_add {
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(thought_rows.len(), 1);
         let thought = &thought_rows[0];
-        let expected = chrono::NaiveDate::parse_from_str("2222-10-12", "%Y-%m-%d")?;
+        let now = Local::now().year();
+        let expected = chrono::NaiveDate::parse_from_str("2222-10-12", "%Y-%m-%d")?.with_year(now).unwrap();
         assert_eq!(thought.date, expected);
 
         Ok(())

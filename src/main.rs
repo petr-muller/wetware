@@ -5,8 +5,9 @@ mod store;
 mod model;
 
 use std::io::IsTerminal;
-use chrono::NaiveDate;
+use chrono::Local;
 use clap::{Args, command, Parser, Subcommand};
+use interim::{parse_date_string, Dialect};
 use ratatui::{TerminalOptions, Viewport};
 use crate::model::thoughts::Thought;
 use crate::tui::app::Thoughts;
@@ -29,7 +30,7 @@ enum Commands {
         /// The thought to add
         thought: String,
         #[arg(long)]
-        date: Option<NaiveDate>,
+        date: Option<String>,
     },
     /// List thoughts
     #[command(name = "thoughts")]
@@ -191,8 +192,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let now = date.unwrap_or(chrono::Local::now().date_naive());
-            let thought = match Thought::from_input(thought, now) {
+
+            let when = match date {
+                None => { Local::now().date_naive() }
+                Some(date) => {
+                    match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                        Ok(date) => { date.date_naive() }
+                        Err(e) => {
+                            eprintln!("Failed to parse --date: {}", e);
+                            return Err(Box::new(e));
+                        }
+                    }
+                }
+            };
+
+            let thought = match Thought::from_input(thought, when) {
                 Ok(thought) => thought,
                 Err(e) => {
                     eprintln!("Failed to read thought: {}", e);
