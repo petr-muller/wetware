@@ -5,8 +5,9 @@ mod store;
 mod model;
 
 use std::io::IsTerminal;
-use chrono::{DateTime, Utc};
+use chrono::Local;
 use clap::{Args, command, Parser, Subcommand};
+use interim::{parse_date_string, Dialect};
 use ratatui::{TerminalOptions, Viewport};
 use crate::model::thoughts::Thought;
 use crate::tui::app::Thoughts;
@@ -28,8 +29,8 @@ enum Commands {
     Add {
         /// The thought to add
         thought: String,
-        #[arg(short, long)]
-        datetime: Option<DateTime<Utc>>,
+        #[arg(long)]
+        date: Option<String>,
     },
     /// List thoughts
     #[command(name = "thoughts")]
@@ -133,7 +134,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tui_result = Thoughts::populated(thoughts).noninteractive(&mut terminal);
                 ratatui::restore();
-
             } else {
                 tui_result = Thoughts::populated(thoughts).raw();
             }
@@ -182,7 +182,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
         }
-        Commands::Add { thought, datetime } => {
+        Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
             let store = match store::sqlite::open(db) {
                 Ok(store) => store,
@@ -192,8 +192,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let now = datetime.unwrap_or_else(Utc::now);
-            let thought = match Thought::from_input(thought, now) {
+
+            let when = match date {
+                None => { Local::now().date_naive() }
+                Some(date) => {
+                    match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                        Ok(date) => { date.date_naive() }
+                        Err(e) => {
+                            eprintln!("Failed to parse --date: {}", e);
+                            return Err(Box::new(e));
+                        }
+                    }
+                }
+            };
+
+            let thought = match Thought::from_input(thought, when) {
                 Ok(thought) => thought,
                 Err(e) => {
                     eprintln!("Failed to read thought: {}", e);
