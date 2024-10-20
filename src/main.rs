@@ -7,6 +7,7 @@ mod model;
 use std::io::IsTerminal;
 use chrono::Local;
 use clap::{Args, command, Parser, Subcommand};
+use indexmap::IndexMap;
 use interim::{parse_date_string, Dialect};
 use ratatui::{TerminalOptions, Viewport};
 use crate::model::thoughts::Thought;
@@ -111,9 +112,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
 
-            let mut thoughts = vec![];
-            for item in raw {
-                thoughts.push(item.as_thought().unwrap())
+            let mut thoughts = IndexMap::new();
+            for (id, item) in raw {
+                thoughts.insert(id, item.as_thought()?);
             }
 
             let tui_result;
@@ -166,9 +167,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let mut thoughts = vec![];
-            for item in raw {
-                thoughts.push(item.as_thought().unwrap())
+            let mut thoughts = IndexMap::new();
+            for (id, item) in raw {
+                thoughts.insert(id, item.as_thought()?);
             }
 
 

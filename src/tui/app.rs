@@ -5,15 +5,15 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 #[allow(unused_imports)]
 use ratatui::prelude::{Line, Span, StatefulWidget, Stylize, Widget};
-use ratatui::style::palette::tailwind::ORANGE;
+use ratatui::style::palette::tailwind::{ORANGE, RED};
 use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 use std::io::Write;
 #[cfg(test)]
-use std::vec::IntoIter;
-#[cfg(test)]
 use chrono::NaiveDate;
+use indexmap::IndexMap;
+use ratatui::style::{Modifier, Style};
 use crate::model::entities::Id as EntityId;
 use crate::model::thoughts::{Fragment, Thought};
 
@@ -84,7 +84,7 @@ impl Thoughts {
         self.view.select_previous()
     }
 
-    pub fn populated(thoughts: Vec<Thought>) -> Self {
+    pub fn populated(thoughts: IndexMap<u32, Thought>) -> Self {
         Self {
             view: ThoughtsList::populated(thoughts),
             should_exit: false,
@@ -98,10 +98,10 @@ impl Widget for &mut Thoughts {
     }
 }
 
-fn make_raw_item(thought: &Thought) -> String {
+fn make_raw_item(id: u32, thought: &Thought) -> String {
     let added = thought.added.format("%Y %b %d").to_string();
 
-    let mut line = added + " > ";
+    let mut line = format!("{added} [{id}] ");
     for fragment in thought.fragments.iter() {
         match fragment {
             Fragment::Plain { text } => { line = line + text }
@@ -112,12 +112,13 @@ fn make_raw_item(thought: &Thought) -> String {
     line
 }
 
-fn make_list_item<'a>(thought: &'a Thought, colorizer: &mut EntityColorizer) -> ListItem<'a> {
+fn make_list_item<'a>(id: u32, thought: &'a Thought, colorizer: &mut EntityColorizer) -> ListItem<'a> {
     let added = thought.added.format("%Y %b %d").to_string();
+    let id = format!(" [{id}] ");
 
     let mut items = vec![
         Span::styled(added, ORANGE.c500),
-        Span::from(" > "),
+        Span::styled(id, Style::from(RED.c500).add_modifier(Modifier::BOLD)),
     ];
 
     for fragment in thought.fragments.iter() {
@@ -142,7 +143,7 @@ fn plain_fragment_match() {
             Fragment::Plain { text: String::from("raw") }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
+    assert_eq!("2021 Feb 03 [1] raw", make_raw_item(1, &thought));
 }
 
 #[cfg(test)]
@@ -159,7 +160,7 @@ fn entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
+    assert_eq!("2021 Feb 03 [2] raw", make_raw_item(2, &thought));
 }
 
 #[cfg(test)]
@@ -167,7 +168,7 @@ fn entity_fragment_match() {
 fn aliased_entity_fragment_match() {
     let thought = Thought {
         raw: "[raw](entity)".to_string(),
-        added: NaiveDate::parse_from_str("2021-02-03","%Y-%m-%d").unwrap(),
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::EntityRef {
                 entity: String::from("entity"),
@@ -176,7 +177,7 @@ fn aliased_entity_fragment_match() {
             }
         ],
     };
-    assert_eq!("2021 Feb 03 > raw", make_raw_item(&thought));
+    assert_eq!("2021 Feb 03 [3] raw", make_raw_item(3, &thought));
 }
 
 #[cfg(test)]
@@ -184,20 +185,20 @@ fn aliased_entity_fragment_match() {
 fn combined_fragments_match() {
     let thought = Thought {
         raw: "[a](b) c [d]".to_string(),
-        added: NaiveDate::parse_from_str("2021-02-03","%Y-%m-%d").unwrap(),
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
         fragments: vec![
             Fragment::EntityRef { entity: String::from("b"), under: String::from("a"), raw: String::from("[a](b)") },
             Fragment::Plain { text: String::from(" c ") },
             Fragment::EntityRef { entity: String::from("d"), under: String::from("d"), raw: String::from("[d]") }
         ],
     };
-    assert_eq!("2021 Feb 03 > a c d", make_raw_item(&thought));
+    assert_eq!("2021 Feb 03 [4] a c d", make_raw_item(4, &thought));
 }
 
 
 #[derive(Default)]
 struct ThoughtsList {
-    thoughts: Vec<Thought>,
+    thoughts: IndexMap<u32, Thought>,
     thoughts_tui: ListState,
 
     entity_colorizer: EntityColorizer,
@@ -207,7 +208,7 @@ struct ThoughtsList {
 
 
 impl ThoughtsList {
-    fn populated(thoughts: Vec<Thought>) -> Self {
+    fn populated(thoughts: IndexMap<u32, Thought>) -> Self {
         Self {
             thoughts,
             thoughts_tui: ListState::default().with_selected(Some(0)),
@@ -228,8 +229,8 @@ impl ThoughtsList {
         let items: Vec<ListItem> = self
             .thoughts
             .iter()
-            .map(|thought| {
-                make_list_item(thought, &mut self.entity_colorizer)
+            .map(|(id, thought)| {
+                make_list_item(*id, thought, &mut self.entity_colorizer)
             }).collect();
 
         let list = if self.interactive {
@@ -244,16 +245,18 @@ impl ThoughtsList {
     }
 
     fn raw(&mut self) {
-        for item in self.thoughts.iter() {
-            println!("{}", make_raw_item(item));
+        for (id, item) in self.thoughts.iter() {
+            println!("{}", make_raw_item(*id, item));
         }
         io::stdout().flush().unwrap();
     }
 }
 
 #[cfg(test)]
-fn short_thoughts() -> IntoIter<Thought> {
-    let v = vec![
+fn short_thoughts() -> IndexMap<u32, Thought> {
+    let mut v = IndexMap::new();
+    v.insert(
+        4,
         Thought {
             raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
             added: NaiveDate::parse_from_str("2023-08-23", "%Y-%m-%d").unwrap(),
@@ -276,7 +279,9 @@ fn short_thoughts() -> IntoIter<Thought> {
                     under: String::from("ActuallyEntity")
                 }
             ],
-        },
+        });
+    v.insert(
+        2,
         Thought {
             raw: String::from("[Entity] is not [another entity](Another Entity)"),
             added: NaiveDate::parse_from_str("2024-09-24", "%Y-%m-%d").unwrap(),
@@ -292,37 +297,37 @@ fn short_thoughts() -> IntoIter<Thought> {
                     entity: String::from("Another Entity"),
                     under: String::from("another entity"),
                 },
-            ]
-        },
-    ];
-    v.into_iter()
+            ],
+        });
+    v
 }
 
 #[cfg(test)]
-fn no_ref_thoughts() -> IntoIter<Thought> {
-    let v = vec![
-        Thought {
-            raw: String::from("First thought"),
-            added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
-            fragments: vec![Fragment::Plain { text: String::from("First thought") }],
-        },
-        Thought {
-            raw: String::from("Second thought"),
-            added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
-            fragments: vec![Fragment::Plain { text: String::from("Second thought") }],
-        },
-    ];
-    v.into_iter()
+fn no_ref_thoughts() -> IndexMap<u32, Thought> {
+    let mut v = IndexMap::new();
+    v.insert(3,
+             Thought {
+                 raw: String::from("First thought id=3"),
+                 added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
+                 fragments: vec![Fragment::Plain { text: String::from("First thought id=3") }],
+             });
+    v.insert(5,
+             Thought {
+                 raw: String::from("Second thought id=5"),
+                 added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
+                 fragments: vec![Fragment::Plain { text: String::from("Second thought id=5") }],
+             });
+    v
 }
 
 #[cfg(test)]
 mod thoughts_list_tests {
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
-    use ratatui::style::palette::tailwind::ORANGE;
+    use ratatui::style::palette::tailwind::{ORANGE,RED};
     use super::{no_ref_thoughts, short_thoughts, ThoughtsList};
 
-    use ratatui::style::Style;
+    use ratatui::style::{Modifier, Style};
 
     #[cfg(test)]
     use pretty_assertions::assert_eq;
@@ -330,11 +335,11 @@ mod thoughts_list_tests {
 
     #[test]
     fn render_simple_thoughts() {
-        let line1 = "  2024 Oct 01 > First thought";
-        let line1_selected = "* 2024 Oct 01 > First thought";
+        let line1 = "  2024 Oct 01 [3] First thought id=3";
+        let line1_selected = "* 2024 Oct 01 [3] First thought id=3";
 
-        let line2 = "  2024 Oct 02 > Second thought";
-        let line2_selected = "* 2024 Oct 02 > Second thought";
+        let line2 = "  2024 Oct 02 [5] Second thought id=5";
+        let line2_selected = "* 2024 Oct 02 [5] Second thought id=5";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);
@@ -343,8 +348,12 @@ mod thoughts_list_tests {
         expected_start.set_style(Rect::new(2, 0, 11, 2), date_style);
         expected_after_next.set_style(Rect::new(2, 0, 11, 2), date_style);
 
-        let mut tl = ThoughtsList::populated(no_ref_thoughts().collect());
-        let mut buf = Buffer::empty(Rect::new(0, 0, 30, 2));
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+        expected_start.set_style(Rect::new(13, 0, 5, 2), id_style);
+        expected_after_next.set_style(Rect::new(13, 0, 5, 2), id_style);
+
+        let mut tl = ThoughtsList::populated(no_ref_thoughts());
+        let mut buf = Buffer::empty(Rect::new(0, 0, 37, 2));
 
         tl.render(buf.area, &mut buf);
         assert_eq!(expected_start, buf);
@@ -368,18 +377,21 @@ mod thoughts_list_tests {
 
     #[test]
     fn render_thoughts_with_entities() {
-        let mut tl = ThoughtsList::populated(short_thoughts().collect());
-        let mut buf = Buffer::empty(Rect::new(0, 0, 59, 2));
+        let mut tl = ThoughtsList::populated(short_thoughts());
+        let mut buf = Buffer::empty(Rect::new(0, 0, 61, 2));
 
         tl.render(buf.area, &mut buf);
 
-        let line1 = "* 2023 Aug 23 > Entity does Something with ActuallyEntity  ";
-        let line2 = "  2024 Sep 24 > Entity is not another entity               ";
+        let line1 = "* 2023 Aug 23 [4] Entity does Something with ActuallyEntity  ";
+        let line2 = "  2024 Sep 24 [2] Entity is not another entity               ";
 
         let mut expected = Buffer::with_lines(vec![line1, line2]);
 
         let date_style = Style::from(ORANGE.c500);
         expected.set_style(Rect::new(2, 0, 11, 2), date_style);
+
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+        expected.set_style(Rect::new(13, 0, 5, 2), id_style);
 
         let entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Entity")));
 
@@ -405,18 +417,19 @@ mod thoughts_tests {
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
     use ratatui::prelude::Style;
-    use ratatui::style::palette::tailwind::ORANGE;
+    use ratatui::style::Modifier;
+    use ratatui::style::palette::tailwind::{ORANGE, RED};
     use ratatui::widgets::Widget;
     use crate::tui::app::{no_ref_thoughts, Thoughts};
 
     #[test]
     fn render_simple_thoughts() -> io::Result<()> {
-        let mut tui = Thoughts::populated(no_ref_thoughts().collect());
-        let line1 = "  2024 Oct 01 > First thought";
-        let line1_selected = "* 2024 Oct 01 > First thought";
+        let mut tui = Thoughts::populated(no_ref_thoughts());
+        let line1 = "  2024 Oct 01 [3] First thought id=3";
+        let line1_selected = "* 2024 Oct 01 [3] First thought id=3";
 
-        let line2 = "  2024 Oct 02 > Second thought";
-        let line2_selected = "* 2024 Oct 02 > Second thought";
+        let line2 = "  2024 Oct 02 [5] Second thought id=5";
+        let line2_selected = "* 2024 Oct 02 [5] Second thought id=5";
 
         let mut expected_start = Buffer::with_lines(vec![line1_selected, line2]);
         let mut expected_after_next = Buffer::with_lines(vec![line1, line2_selected]);
@@ -425,7 +438,11 @@ mod thoughts_tests {
         expected_start.set_style(Rect::new(2, 0, 11, 2), date_style);
         expected_after_next.set_style(Rect::new(2, 0, 11, 2), date_style);
 
-        let mut buf = Buffer::empty(Rect::new(0, 0, 30, 2));
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+        expected_start.set_style(Rect::new(13, 0, 5, 2), id_style);
+        expected_after_next.set_style(Rect::new(13, 0, 5, 2), id_style);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, 37, 2));
 
         tui.render(buf.area, &mut buf);
         assert_eq!(expected_start, buf);
