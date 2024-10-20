@@ -309,7 +309,6 @@ pub enum Fragment {
 pub struct Thought {
     pub raw: String,
     pub added: NaiveDate,
-
     pub fragments: Vec<Fragment>,
 }
 

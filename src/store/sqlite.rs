@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+use indexmap::IndexMap;
 use rusqlite::{Connection, params, params_from_iter};
 use crate::model::entities::Entity;
 use crate::model::thoughts::{Fragment, RawThought, Thought};
@@ -55,8 +57,8 @@ impl Store {
 
         Ok(entities)
     }
-    pub fn get_thoughts(&self, entity: Option<String>) -> Result<Vec<RawThought>> {
-        let mut stmt_lines = vec!["SELECT thought, datetime FROM thoughts"];
+    pub fn get_thoughts(&self, entity: Option<String>) -> Result<IndexMap<u32, RawThought>> {
+        let mut stmt_lines = vec!["SELECT thoughts.id, thought, datetime FROM thoughts"];
         let mut params = vec![];
 
         if let Some(entity) = entity {
@@ -71,18 +73,20 @@ impl Store {
 
         let mut stmt = self.conn.prepare(stmt_lines.join("\n").as_str())?;
 
+
         let rows = stmt.query_map(params_from_iter(params), |row| {
-            Ok(RawThought::from_store(
-                row.get(0)?,
-                row.get(1)?,
-            ))
+            let id: u32 = row.get(0)?;
+            let raw: String = row.get(1)?;
+            let added: NaiveDate = row.get(2)?;
+
+            Ok((id, RawThought::from_store(raw, added)))
         })?;
 
-        let mut thoughts = vec![];
-
-        for thought in rows {
-            thoughts.push(thought?);
-        };
+        let mut thoughts = IndexMap::new();
+        for item in rows {
+            let (id, thought) = item?;
+            thoughts.insert(id, thought);
+        }
 
         Ok(thoughts)
     }
@@ -131,7 +135,7 @@ impl Store {
         let thought_id = self.conn.last_insert_rowid();
 
         for fragment in thought.fragments {
-            if let Fragment::EntityRef{entity, ..} = fragment {
+            if let Fragment::EntityRef { entity, .. } = fragment {
                 self.conn.execute(
                     "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
                     params![entity],

@@ -44,7 +44,7 @@ mod integration_cli_add {
         let thought = &thought_rows[0];
         assert_eq!(thought.thought, "This is a thought with a default date");
 
-        assert_eq!(thought.date, chrono::Local::now().date_naive());
+        assert_eq!(thought.date, Local::now().date_naive());
 
         Ok(())
     }
