@@ -30,8 +30,16 @@ enum Commands {
     Add {
         /// The thought to add
         thought: String,
+        #[arg(long, default_value = "today")]
+        date: String,
+    },
+    /// Edit a thought identified by ID
+    #[command(name = "edit", arg_required_else_help = true)]
+    Edit {
+        /// The ID of the thought to edit
+        thought_id: u32,
         #[arg(long)]
-        date: Option<String>,
+        date: String,
     },
     /// List thoughts
     #[command(name = "thoughts")]
@@ -67,13 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Entities {} => {
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let store = store::sqlite::open(db)?;
 
             let entities = match store.get_entities() {
                 Ok(entities) => entities,
@@ -94,23 +96,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
             // TODO(muller): Somehow eliminate the matches and use map_err?
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
-
-            // TODO(muller): implement entity filter as fluent api instead of a param
-            let raw = match store.get_thoughts(entity) {
-                Ok(thoughts) => thoughts,
-                Err(e) => {
-                    eprintln!("Failed to get thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
-
+            let store = store::sqlite::open(db)?;
+            let raw = store.get_thoughts(entity)?;
 
             let mut thoughts = IndexMap::new();
             for (id, item) in raw {
@@ -151,21 +138,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 viewport: Viewport::Inline(12),
             });
 
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let store = store::sqlite::open(db)?;
 
-            let raw = match store.get_thoughts(None) {
-                Ok(thoughts) => thoughts,
-                Err(e) => {
-                    eprintln!("Failed to get thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let raw = store.get_thoughts(None)?;
 
             let mut thoughts = IndexMap::new();
             for (id, item) in raw {
@@ -183,27 +158,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
         }
-        Commands::Add { thought, date } => {
-            // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
+        Commands::Edit { thought_id, date } => {
+            let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                Ok(date) => { date.date_naive() }
                 Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
+                    eprintln!("Failed to parse --date: {}", e);
                     return Err(Box::new(e));
                 }
             };
 
+            let store = store::sqlite::open(db)?;
+            let mut thought = store.get_thought(thought_id)?.as_thought()?;
+            thought.added = when;
 
-            let when = match date {
-                None => { Local::now().date_naive() }
-                Some(date) => {
-                    match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
-                        Ok(date) => { date.date_naive() }
-                        Err(e) => {
-                            eprintln!("Failed to parse --date: {}", e);
-                            return Err(Box::new(e));
-                        }
-                    }
+            match store.edit_thought(thought_id, thought) {
+                Ok(()) => (),
+                Err(e) => {
+                    eprintln!("Failed to edit thought: {}", e);
+                    return Err(Box::new(e));
+                }
+            }
+        }
+        Commands::Add { thought, date } => {
+            // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
+            let store = store::sqlite::open(db)?;
+
+
+            let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                Ok(date) => { date.date_naive() }
+                Err(e) => {
+                    eprintln!("Failed to parse --date: {}", e);
+                    return Err(Box::new(e));
                 }
             };
 

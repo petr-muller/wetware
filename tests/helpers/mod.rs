@@ -2,7 +2,7 @@ use assert_cmd::Command;
 use chrono::NaiveDate;
 
 pub struct ThoughtsTableRow {
-    pub id: isize,
+    pub id: u32,
     pub thought: String,
     pub date: NaiveDate,
 }
@@ -13,7 +13,7 @@ pub struct EntitiesTableRow {
 }
 
 pub struct ThoughtsEntitiesTableRow {
-    pub thought_id: isize,
+    pub thought_id: u32,
     pub entity_id: isize,
 }
 
@@ -48,6 +48,13 @@ impl TestWet {
     pub fn thoughts(&self) -> Result<Command, Box<dyn std::error::Error>> {
         let mut cmd = self.cmd()?;
         cmd.arg("thoughts");
+        Ok(cmd)
+    }
+
+    pub fn edit(&self, id: u32) -> Result<Command, Box<dyn std::error::Error>> {
+        let mut cmd = self.cmd()?;
+        cmd.arg("edit");
+        cmd.arg(id.to_string());
         Ok(cmd)
     }
 

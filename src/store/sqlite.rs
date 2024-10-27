@@ -1,8 +1,8 @@
-use chrono::NaiveDate;
-use indexmap::IndexMap;
-use rusqlite::{Connection, params, params_from_iter};
 use crate::model::entities::Entity;
 use crate::model::thoughts::{Fragment, RawThought, Thought};
+use chrono::NaiveDate;
+use indexmap::IndexMap;
+use rusqlite::{params, params_from_iter, Connection};
 
 pub struct Store {
     conn: Connection,
@@ -57,6 +57,28 @@ impl Store {
 
         Ok(entities)
     }
+    pub fn get_thought(&self, thought_id: u32) -> Result<RawThought> {
+        let mut stmt = self.conn.prepare(
+            "SELECT thought, datetime FROM thoughts WHERE id = ?1"
+        )?;
+        let rows = stmt.query_map(params![thought_id], |row| {
+            let raw: String = row.get(0)?;
+            let added: NaiveDate = row.get(1)?;
+            Ok(RawThought::from_store(raw, added))
+        })?;
+
+        let mut thoughts = vec![];
+        for row in rows {
+            thoughts.push(row?);
+        }
+
+        match thoughts.len() {
+            0 => { Err(SqliteStoreError { message: format!("No thought with id {thought_id}") }) }
+            1 => Ok(thoughts[0].clone()),
+            _ => Err(SqliteStoreError { message: format!("BUG: Multiple thoughts with id {thought_id}") }),
+        }
+    }
+
     pub fn get_thoughts(&self, entity: Option<String>) -> Result<IndexMap<u32, RawThought>> {
         let mut stmt_lines = vec!["SELECT thoughts.id, thought, datetime FROM thoughts"];
         let mut params = vec![];
@@ -72,7 +94,6 @@ impl Store {
         stmt_lines.push("ORDER BY datetime");
 
         let mut stmt = self.conn.prepare(stmt_lines.join("\n").as_str())?;
-
 
         let rows = stmt.query_map(params_from_iter(params), |row| {
             let id: u32 = row.get(0)?;
@@ -152,12 +173,19 @@ impl Store {
 
         Ok(())
     }
+    pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
+        self.conn.execute(
+            "UPDATE thoughts SET datetime = ?1 WHERE id = ?2",
+            params!(thought.added, thought_id),
+        )?;
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-    use rusqlite::types::FromSqlError;
     use super::*;
+    use rusqlite::types::FromSqlError;
+    use std::error::Error;
     #[test]
     fn sqlite_store_error_display() {
         let err = SqliteStoreError { message: String::from("this is an error") };

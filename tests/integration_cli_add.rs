@@ -49,6 +49,47 @@ mod integration_cli_add {
         Ok(())
     }
 
+    #[test]
+    fn stores_thought_in_database_with_today_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let _ = wet.add("This is a thought with today date")?
+            .arg("--date")
+            .arg("today")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        assert_eq!(thought.thought, "This is a thought with today date");
+
+        assert_eq!(thought.date, Local::now().date_naive());
+
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_thought_with_invalid_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("Seed thought")?.assert().success();
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+
+        wet.add("This is a thought with invalid date")?
+            .arg("--date")
+            .arg("not-a-date")
+            .assert()
+            .failure();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        assert_eq!(thought.thought, "Seed thought");
+
+        Ok(())
+    }
+
     // Work only with (naive) dates for now
     #[ignore]
     #[test]
