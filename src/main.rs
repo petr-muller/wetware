@@ -159,7 +159,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
         }
         Commands::Edit { thought_id, date } => {
+            let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                Ok(date) => { date.date_naive() }
+                Err(e) => {
+                    eprintln!("Failed to parse --date: {}", e);
+                    return Err(Box::new(e));
+                }
+            };
+
             let store = store::sqlite::open(db)?;
+            let mut thought = store.get_thought(thought_id)?.as_thought()?;
+            thought.added = when;
+
+            match store.edit_thought(thought_id, thought) {
+                Ok(()) => (),
+                Err(e) => {
+                    eprintln!("Failed to edit thought: {}", e);
+                    return Err(Box::new(e));
+                }
+            }
         }
         Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it

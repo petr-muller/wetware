@@ -423,7 +423,7 @@ mod thought_tests {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RawThought {
     raw: String,
     added: NaiveDate,
