@@ -30,8 +30,8 @@ enum Commands {
     Add {
         /// The thought to add
         thought: String,
-        #[arg(long)]
-        date: Option<String>,
+        #[arg(long, default_value = "today")]
+        date: String,
     },
     /// Edit a thought identified by ID
     #[command(name = "edit", arg_required_else_help = true)]
@@ -184,16 +184,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let store = store::sqlite::open(db)?;
 
 
-            let when = match date {
-                None => { Local::now().date_naive() }
-                Some(date) => {
-                    match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
-                        Ok(date) => { date.date_naive() }
-                        Err(e) => {
-                            eprintln!("Failed to parse --date: {}", e);
-                            return Err(Box::new(e));
-                        }
-                    }
+            let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                Ok(date) => { date.date_naive() }
+                Err(e) => {
+                    eprintln!("Failed to parse --date: {}", e);
+                    return Err(Box::new(e));
                 }
             };
 
