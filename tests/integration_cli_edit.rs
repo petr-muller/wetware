@@ -50,7 +50,7 @@ mod integration_cli_edit {
         Ok(())
     }
     #[test]
-    fn sets_default_date_on_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
+    fn sets_given_date_on_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         wet.add("This is a thought without date")?
             .assert().
