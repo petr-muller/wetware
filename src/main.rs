@@ -33,6 +33,14 @@ enum Commands {
         #[arg(long)]
         date: Option<String>,
     },
+    /// Edit a thought identified by ID
+    #[command(name = "edit", arg_required_else_help = true)]
+    Edit {
+        /// The ID of the thought to edit
+        thought_id: u32,
+        #[arg(long)]
+        date: String,
+    },
     /// List thoughts
     #[command(name = "thoughts")]
     Thoughts {
@@ -182,6 +190,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(Box::new(e))
                 }
             };
+        }
+        Commands::Edit { thought_id, date } => {
+            let store = store::sqlite::open(db)?;
         }
         Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
