@@ -75,13 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Entities {} => {
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let store = store::sqlite::open(db)?;
 
             let entities = match store.get_entities() {
                 Ok(entities) => entities,
@@ -102,23 +96,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
             // TODO(muller): Somehow eliminate the matches and use map_err?
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
-
-            // TODO(muller): implement entity filter as fluent api instead of a param
-            let raw = match store.get_thoughts(entity) {
-                Ok(thoughts) => thoughts,
-                Err(e) => {
-                    eprintln!("Failed to get thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
-
+            let store = store::sqlite::open(db)?;
+            let raw = store.get_thoughts(entity)?;
 
             let mut thoughts = IndexMap::new();
             for (id, item) in raw {
@@ -159,21 +138,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 viewport: Viewport::Inline(12),
             });
 
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let store = store::sqlite::open(db)?;
 
-            let raw = match store.get_thoughts(None) {
-                Ok(thoughts) => thoughts,
-                Err(e) => {
-                    eprintln!("Failed to get thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let raw = store.get_thoughts(None)?;
 
             let mut thoughts = IndexMap::new();
             for (id, item) in raw {
@@ -196,13 +163,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
-            let store = match store::sqlite::open(db) {
-                Ok(store) => store,
-                Err(e) => {
-                    eprintln!("Failed to open thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
+            let store = store::sqlite::open(db)?;
 
 
             let when = match date {
