@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0](https://github.com/petr-muller/wetware/compare/v0.3.0...v0.4.0) (2024-11-10)
+
+
+### Features
+
+* **edit:** allow editing thought dates ([#102](https://github.com/petr-muller/wetware/issues/102)) ([aa2b652](https://github.com/petr-muller/wetware/commit/aa2b65290a58162367ee4bb942840dc683b2607f))
+* **edit:** allow editing thoughts ([#105](https://github.com/petr-muller/wetware/issues/105)) ([e2f8e94](https://github.com/petr-muller/wetware/commit/e2f8e94591a081b90212b430407328ca2c948f1e))
+* **thought:** do not emit hours ([#97](https://github.com/petr-muller/wetware/issues/97)) ([8daaec1](https://github.com/petr-muller/wetware/commit/8daaec195d146d10e5f1a3ba73578281af81aba6))
+* **thought:** expose thought IDs ([#100](https://github.com/petr-muller/wetware/issues/100)) ([e52dcb5](https://github.com/petr-muller/wetware/commit/e52dcb5ee1ac02dacaf9e73438abfa63527154c8))
+* **thoughts:** allow aliased entity references ([#94](https://github.com/petr-muller/wetware/issues/94)) ([10fdff3](https://github.com/petr-muller/wetware/commit/10fdff3ce6edaa02b142da229f67fd4b9f954548))
+* **thoughts:** use dates without times everywhere ([#98](https://github.com/petr-muller/wetware/issues/98)) ([1b62bf6](https://github.com/petr-muller/wetware/commit/1b62bf632d917ab7016608ac0fe49c043a808a1e))
+* thougts and tui share backend ([#93](https://github.com/petr-muller/wetware/issues/93)) ([8d0cb95](https://github.com/petr-muller/wetware/commit/8d0cb958a3faa59f833611437099a1e8a1f0b4f9))
+* **tui:** extract tui to module, pass tests ([#89](https://github.com/petr-muller/wetware/issues/89)) ([3f91205](https://github.com/petr-muller/wetware/commit/3f9120548e66cb1ceee9e5a4ba500be1758ee695))
+* **tui:** simple persisten entity-&gt;color mapper ([#85](https://github.com/petr-muller/wetware/issues/85)) ([cf032f0](https://github.com/petr-muller/wetware/commit/cf032f01f068e492f0cf405bb22336004184b8ec))
+
+
+### Bug Fixes
+
+* **add:** multiple refs from one thought to one entity ([#104](https://github.com/petr-muller/wetware/issues/104)) ([4353188](https://github.com/petr-muller/wetware/commit/4353188e6cf391ed9d154e3b53f05befb15d8e5b))
+
 ## [0.3.0](https://github.com/petr-muller/wetware/compare/v0.2.0...v0.3.0) (2024-03-29)
 
 
