@@ -165,7 +165,7 @@ impl Store {
                 let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
                 let entity_id = rows.next().unwrap()?;
                 self.conn.execute(
-                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2)",
+                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",
                     params![thought_id, entity_id],
                 )?;
             }
