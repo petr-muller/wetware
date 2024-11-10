@@ -1,4 +1,4 @@
-use crate::model::entities::Entity;
+use crate::model::entities;
 use crate::model::thoughts::{Fragment, RawThought, Thought};
 use chrono::NaiveDate;
 use indexmap::IndexMap;
@@ -41,11 +41,11 @@ pub fn open(db: String) -> Result<Store> {
 }
 
 impl Store {
-    pub fn get_entities(&self) -> Result<Vec<Entity>> {
+    pub fn get_entities(&self) -> Result<Vec<entities::Entity>> {
         let stmt = "SELECT name FROM entities ORDER BY name";
         let mut stmt = self.conn.prepare(stmt)?;
         let rows = stmt.query_map(params![], |row| {
-            Ok(Entity {
+            Ok(entities::Entity {
                 raw: row.get(0)?,
             })
         })?;
@@ -153,21 +153,11 @@ impl Store {
             params![thought.raw, thought.added],
         )?;
 
-        let thought_id = self.conn.last_insert_rowid();
+        let thought_id = self.conn.last_insert_rowid() as u32;
 
         for fragment in thought.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
-                self.conn.execute(
-                    "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
-                    params![entity],
-                )?;
-                let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-                let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
-                let entity_id = rows.next().unwrap()?;
-                self.conn.execute(
-                    "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",
-                    params![thought_id, entity_id],
-                )?;
+                self.link_thought_to_entity(thought_id, entity)?;
             }
         }
 
@@ -175,8 +165,35 @@ impl Store {
     }
     pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
         self.conn.execute(
-            "UPDATE thoughts SET datetime = ?1 WHERE id = ?2",
-            params!(thought.added, thought_id),
+            "UPDATE thoughts SET thought = ?1, datetime = ?2 WHERE id = ?3",
+            params!(thought.raw, thought.added, thought_id),
+        )?;
+
+        self.conn.execute(
+            "DELETE FROM thoughts_entities WHERE thought_id = ?1",
+            params![thought_id],
+        )?;
+
+        for fragment in thought.fragments {
+            if let Fragment::EntityRef { entity, .. } = fragment {
+                self.link_thought_to_entity(thought_id, entity)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn link_thought_to_entity(&self, thought_id: u32, entity: entities::Id) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
+            params![entity],
+        )?;
+        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
+        let entity_id = rows.next().unwrap()?;
+        self.conn.execute(
+            "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",
+            params![thought_id, entity_id],
         )?;
         Ok(())
     }

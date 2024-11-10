@@ -38,8 +38,10 @@ enum Commands {
     Edit {
         /// The ID of the thought to edit
         thought_id: u32,
-        #[arg(long)]
-        date: String,
+        /// Edited thought
+        new_thought: Option<String>,
+        #[arg(long = "date")]
+        new_date: Option<String>,
     },
     /// List thoughts
     #[command(name = "thoughts")]
@@ -158,18 +160,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
         }
-        Commands::Edit { thought_id, date } => {
-            let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
-                Ok(date) => { date.date_naive() }
+        Commands::Edit { thought_id, new_thought, new_date } => {
+            let store = store::sqlite::open(db)?;
+            let old = store.get_thought(thought_id)?.as_thought()?;
+
+            let date = if let Some(date) = new_date {
+                match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
+                    Ok(date) => { date.date_naive() }
+                    Err(e) => {
+                        eprintln!("Failed to parse --date: {}", e);
+                        return Err(Box::new(e));
+                    }
+                }
+            } else {
+                old.added
+            };
+
+            let raw = if let Some(raw) = new_thought {
+                raw
+            } else {
+                old.raw
+            };
+
+            let thought = match Thought::from_input(raw, date) {
+                Ok(thought) => thought,
                 Err(e) => {
-                    eprintln!("Failed to parse --date: {}", e);
+                    eprintln!("Failed to read thought: {}", e);
                     return Err(Box::new(e));
                 }
             };
-
-            let store = store::sqlite::open(db)?;
-            let mut thought = store.get_thought(thought_id)?.as_thought()?;
-            thought.added = when;
 
             match store.edit_thought(thought_id, thought) {
                 Ok(()) => (),
