@@ -195,6 +195,33 @@ mod integration_cli_add {
     }
 
     #[test]
+    fn stores_thought_in_database_with_two_reference_to_one_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("[subject] and [subject]")?;
+        add.assert().success();
+
+        let thoughts_rows = wet.thoughts_rows()?;
+        assert_eq!(thoughts_rows.len(), 1);
+        let thought = &thoughts_rows[0];
+        assert_eq!(thought.thought, "[subject] and [subject]");
+
+        let entities_rows = wet.entities_rows()?;
+
+        assert_eq!(entities_rows.len(), 1);
+        let entity = &entities_rows[0];
+        assert_eq!(entity.name, "subject");
+
+        let links = wet.thoughts_to_entities_rows()?;
+
+        assert_eq!(links.len(), 1);
+        let link = &links[0];
+        assert_eq!(thought.id, link.thought_id);
+        assert_eq!(entity.id, link.entity_id);
+
+        Ok(())
+    }
+
+    #[test]
     fn two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut first_add = wet.add("This is a thought about [subject]")?;
