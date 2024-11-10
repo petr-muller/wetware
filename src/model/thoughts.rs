@@ -330,7 +330,7 @@ pub struct Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "SQLite store error: {}", self.message)
+        write!(f, "Thought error: {}", self.message)
     }
 }
 

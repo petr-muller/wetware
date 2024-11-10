@@ -78,4 +78,147 @@ mod integration_cli_edit {
 
         Ok(())
     }
+
+    #[test]
+    fn edits_simple_thought_without_altering_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("This is a thought")?
+            .arg("--date")
+            .arg("2022-02-02")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let before = &thought_rows[0];
+
+        wet.edit(before.id)?
+            .arg("Changed thought")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let after = &thought_rows[0];
+
+        assert_eq!(before.date, after.date);
+        assert_eq!("Changed thought", after.thought);
+
+        Ok(())
+    }
+
+    #[test]
+    fn adds_entity_refs() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("This is a thought")?
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let before = &thought_rows[0];
+
+        wet.edit(before.id)?
+            .arg("[This] is a [thought]")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let after = &thought_rows[0];
+
+        assert_eq!(before.date, after.date);
+        assert_eq!("[This] is a [thought]", after.thought);
+
+        let entities_rows = wet.entities_rows()?;
+        assert_eq!(entities_rows.len(), 2);
+
+        let links = wet.thoughts_to_entities_rows()?;
+        assert_eq!(links.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn removes_entity_refs() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("[This] is a [thought] about [subject]")?
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let before = &thought_rows[0];
+
+        let entities_rows = wet.entities_rows()?;
+        assert_eq!(entities_rows.len(), 3);
+
+        let links = wet.thoughts_to_entities_rows()?;
+        assert_eq!(links.len(), 3);
+
+        wet.edit(before.id)?
+            .arg("This is a thought about [subject] with some details")
+            .assert()
+            .success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let after = &thought_rows[0];
+
+        assert_eq!("This is a thought about [subject] with some details", after.thought);
+
+        let entities_rows = wet.entities_rows()?;
+        assert_eq!(entities_rows.len(), 3);
+
+        let links = wet.thoughts_to_entities_rows()?;
+        assert_eq!(links.len(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_bad_date() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("Original")?.assert().success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let before = &thought_rows[0];
+
+        wet.edit(before.id)?
+            .arg("--date")
+            .arg("not-a-date")
+            .assert()
+            .failure();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        assert_eq!(thought.thought, "Original");
+
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_bad_thought() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        wet.add("Original")?.assert().success();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(1, thought_rows.len());
+        let before = &thought_rows[0];
+
+        wet.edit(before.id)?
+            .arg("Changed [to invalid")
+            .assert()
+            .failure();
+
+        let thought_rows = wet.thoughts_rows()?;
+        assert_eq!(thought_rows.len(), 1);
+        let thought = &thought_rows[0];
+        assert_eq!(thought.thought, "Original");
+
+        Ok(())
+    }
+
 }
