@@ -3,6 +3,7 @@ use crate::model::thoughts::{Fragment, RawThought, Thought};
 use chrono::NaiveDate;
 use indexmap::IndexMap;
 use rusqlite::{params, params_from_iter, Connection};
+use rusqlite_migration::{Migrations, M};
 
 pub struct Store {
     conn: Connection,
@@ -36,7 +37,30 @@ impl From<rusqlite::Error> for SqliteStoreError {
 type Result<T> = std::result::Result<T, SqliteStoreError>;
 
 pub fn open(db: String) -> Result<Store> {
-    let conn = Connection::open(db)?;
+    let migrations = Migrations::new(vec![
+        M::up("CREATE TABLE IF NOT EXISTS thoughts (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thought     TEXT NOT NULL,
+                    datetime    INTEGER NOT NULL
+                    );
+                   CREATE TABLE IF NOT EXISTS entities (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name        TEXT NOT NULL UNIQUE
+                    );
+                   CREATE TABLE IF NOT EXISTS thoughts_entities (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thought_id  INTEGER,
+                    entity_id   INTEGER,
+                    FOREIGN KEY(thought_id) REFERENCES thoughts(id),
+                    FOREIGN KEY(entity_id)  REFERENCES entities(id),
+                    UNIQUE(thought_id, entity_id)
+                    );"),
+    ]);
+
+    let mut conn = Connection::open(db)?;
+
+    migrations.to_latest(& mut conn).unwrap();
+
     Ok(Store { conn })
 }
 
@@ -112,42 +136,7 @@ impl Store {
         Ok(thoughts)
     }
 
-    fn make_tables(&self) -> Result<()> {
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS thoughts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thought TEXT NOT NULL,
-                    datetime INTEGER NOT NULL
-                    )",
-            (),
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEST NOT NULL UNIQUE
-                    )",
-            (),
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS thoughts_entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thought_id INTEGER,
-                    entity_id INTEGER,
-                    FOREIGN KEY(thought_id) REFERENCES thoughts(id),
-                    FOREIGN KEY(entity_id) REFERENCES entities(id),
-                    UNIQUE(thought_id, entity_id)
-                    )",
-            (),
-        )?;
-
-        Ok(())
-    }
-
     pub fn add_thought(&self, thought: Thought) -> Result<()> {
-        self.make_tables()?;
-
         self.conn.execute(
             "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
             params![thought.raw, thought.added],
