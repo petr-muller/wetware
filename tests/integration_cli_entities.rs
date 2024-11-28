@@ -1,8 +1,8 @@
 pub mod helpers;
 
 mod integration_cli_entities {
-    use predicates::prelude::predicate;
     use crate::helpers::TestWet;
+    use predicates::prelude::predicate;
 
     #[test]
     fn shows_no_entities_when_there_are_none() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,7 +15,10 @@ mod integration_cli_entities {
 
         let expected_output = "No entities in the database\n";
         let mut entities = wet.entities()?;
-        entities.assert().success().stdout(predicate::eq(expected_output));
+        entities
+            .assert()
+            .success()
+            .stdout(predicate::eq(expected_output));
 
         Ok(())
     }
@@ -34,7 +37,10 @@ mod integration_cli_entities {
 
         let expected_output = "a subject\nb subject\nsubject\n";
         let mut entities = wet.entities()?;
-        entities.assert().success().stdout(predicate::eq(expected_output));
+        entities
+            .assert()
+            .success()
+            .stdout(predicate::eq(expected_output));
 
         Ok(())
     }

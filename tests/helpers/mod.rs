@@ -24,7 +24,7 @@ pub struct TestWet {
 impl TestWet {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            db: assert_fs::NamedTempFile::new("wetware.db")?
+            db: assert_fs::NamedTempFile::new("wetware.db")?,
         })
     }
     pub fn cmd(&self) -> Result<Command, Box<dyn std::error::Error>> {
@@ -66,11 +66,13 @@ impl TestWet {
     pub fn thoughts_rows(&self) -> Result<Vec<ThoughtsTableRow>, Box<dyn std::error::Error>> {
         let conn = self.connection()?;
         let mut stmt = conn.prepare("SELECT id, thought, datetime FROM thoughts")?;
-        let rows = stmt.query_map([], |row| Ok(ThoughtsTableRow {
-            id: row.get(0)?,
-            thought: row.get(1)?,
-            date: row.get(2)?,
-        }))?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ThoughtsTableRow {
+                id: row.get(0)?,
+                thought: row.get(1)?,
+                date: row.get(2)?,
+            })
+        })?;
         let mut thoughts = Vec::new();
         for thought in rows {
             thoughts.push(thought.unwrap())
@@ -81,10 +83,12 @@ impl TestWet {
     pub fn entities_rows(&self) -> Result<Vec<EntitiesTableRow>, Box<dyn std::error::Error>> {
         let conn = self.connection()?;
         let mut stmt = conn.prepare("SELECT id, name FROM entities")?;
-        let rows = stmt.query_map([], |row| Ok(EntitiesTableRow {
-            id: row.get(0)?,
-            name: row.get(1)?,
-        }))?;
+        let rows = stmt.query_map([], |row| {
+            Ok(EntitiesTableRow {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })?;
         let mut entities = Vec::new();
         for entity in rows {
             entities.push(entity.unwrap())
@@ -93,13 +97,17 @@ impl TestWet {
         Ok(entities)
     }
 
-    pub fn thoughts_to_entities_rows(&self) -> Result<Vec<ThoughtsEntitiesTableRow>, Box<dyn std::error::Error>> {
+    pub fn thoughts_to_entities_rows(
+        &self,
+    ) -> Result<Vec<ThoughtsEntitiesTableRow>, Box<dyn std::error::Error>> {
         let conn = self.connection()?;
         let mut stmt = conn.prepare("SELECT thought_id, entity_id FROM thoughts_entities")?;
-        let rows = stmt.query_map([], |row| Ok(ThoughtsEntitiesTableRow {
-            thought_id: row.get(0)?,
-            entity_id: row.get(1)?,
-        }))?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ThoughtsEntitiesTableRow {
+                thought_id: row.get(0)?,
+                entity_id: row.get(1)?,
+            })
+        })?;
 
         let mut links = Vec::new();
         for link in rows {

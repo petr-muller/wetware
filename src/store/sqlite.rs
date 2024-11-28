@@ -37,8 +37,8 @@ impl From<rusqlite::Error> for SqliteStoreError {
 type Result<T> = std::result::Result<T, SqliteStoreError>;
 
 pub fn open(db: String) -> Result<Store> {
-    let migrations = Migrations::new(vec![
-        M::up("CREATE TABLE IF NOT EXISTS thoughts (
+    let migrations = Migrations::new(vec![M::up(
+        "CREATE TABLE IF NOT EXISTS thoughts (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     thought     TEXT NOT NULL,
                     datetime    INTEGER NOT NULL
@@ -54,12 +54,12 @@ pub fn open(db: String) -> Result<Store> {
                     FOREIGN KEY(thought_id) REFERENCES thoughts(id),
                     FOREIGN KEY(entity_id)  REFERENCES entities(id),
                     UNIQUE(thought_id, entity_id)
-                    );"),
-    ]);
+                    );",
+    )]);
 
     let mut conn = Connection::open(db)?;
 
-    migrations.to_latest(& mut conn).unwrap();
+    migrations.to_latest(&mut conn).unwrap();
 
     Ok(Store { conn })
 }
@@ -68,23 +68,19 @@ impl Store {
     pub fn get_entities(&self) -> Result<Vec<entities::Entity>> {
         let stmt = "SELECT name FROM entities ORDER BY name";
         let mut stmt = self.conn.prepare(stmt)?;
-        let rows = stmt.query_map(params![], |row| {
-            Ok(entities::Entity {
-                raw: row.get(0)?,
-            })
-        })?;
+        let rows = stmt.query_map(params![], |row| Ok(entities::Entity { raw: row.get(0)? }))?;
 
         let mut entities = vec![];
         for entity in rows {
             entities.push(entity?);
-        };
+        }
 
         Ok(entities)
     }
     pub fn get_thought(&self, thought_id: u32) -> Result<RawThought> {
-        let mut stmt = self.conn.prepare(
-            "SELECT thought, datetime FROM thoughts WHERE id = ?1"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT thought, datetime FROM thoughts WHERE id = ?1")?;
         let rows = stmt.query_map(params![thought_id], |row| {
             let raw: String = row.get(0)?;
             let added: NaiveDate = row.get(1)?;
@@ -97,9 +93,13 @@ impl Store {
         }
 
         match thoughts.len() {
-            0 => { Err(SqliteStoreError { message: format!("No thought with id {thought_id}") }) }
+            0 => Err(SqliteStoreError {
+                message: format!("No thought with id {thought_id}"),
+            }),
             1 => Ok(thoughts[0].clone()),
-            _ => Err(SqliteStoreError { message: format!("BUG: Multiple thoughts with id {thought_id}") }),
+            _ => Err(SqliteStoreError {
+                message: format!("BUG: Multiple thoughts with id {thought_id}"),
+            }),
         }
     }
 
@@ -111,7 +111,8 @@ impl Store {
             stmt_lines.append(&mut vec![
                 "JOIN thoughts_entities ON thoughts.id = thoughts_entities.thought_id",
                 "JOIN entities ON thoughts_entities.entity_id = entities.id",
-                "WHERE entities.name = ?1"]);
+                "WHERE entities.name = ?1",
+            ]);
             params.push(entity)
         }
 
@@ -194,13 +195,17 @@ mod tests {
     use std::error::Error;
     #[test]
     fn sqlite_store_error_display() {
-        let err = SqliteStoreError { message: String::from("this is an error") };
+        let err = SqliteStoreError {
+            message: String::from("this is an error"),
+        };
         assert_eq!(err.to_string(), "SQLite store error: this is an error")
     }
 
     #[test]
     fn sqlite_store_error_error() {
-        let err = SqliteStoreError { message: String::from("this is an error") };
+        let err = SqliteStoreError {
+            message: String::from("this is an error"),
+        };
         let source = err.source();
         assert!(source.is_none())
     }

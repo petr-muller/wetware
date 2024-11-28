@@ -5,7 +5,6 @@ mod integration_cli_edit {
     use chrono::Local;
     use predicates::prelude::predicate;
 
-
     #[test]
     fn plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
         let mut wet = TestWet::new()?.cmd()?;
@@ -24,8 +23,8 @@ mod integration_cli_edit {
         wet.add("This is a thought with date")?
             .arg("--date")
             .arg("2022-02-22")
-            .assert().
-            success();
+            .assert()
+            .success();
 
         let thought_rows = wet.thoughts_rows()?;
 
@@ -35,11 +34,7 @@ mod integration_cli_edit {
         assert_eq!(expected_before, thought.date);
         let id = thought.id;
 
-        wet.edit(id)?
-            .arg("--date")
-            .arg("today")
-            .assert()
-            .success();
+        wet.edit(id)?.arg("--date").arg("today").assert().success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(1, thought_rows.len());
@@ -53,8 +48,8 @@ mod integration_cli_edit {
     fn sets_given_date_on_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         wet.add("This is a thought without date")?
-            .assert().
-            success();
+            .assert()
+            .success();
 
         let thought_rows = wet.thoughts_rows()?;
 
@@ -110,9 +105,7 @@ mod integration_cli_edit {
     #[test]
     fn adds_entity_refs() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
-        wet.add("This is a thought")?
-            .assert()
-            .success();
+        wet.add("This is a thought")?.assert().success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(1, thought_rows.len());
@@ -165,7 +158,10 @@ mod integration_cli_edit {
         assert_eq!(1, thought_rows.len());
         let after = &thought_rows[0];
 
-        assert_eq!("This is a thought about [subject] with some details", after.thought);
+        assert_eq!(
+            "This is a thought about [subject] with some details",
+            after.thought
+        );
 
         let entities_rows = wet.entities_rows()?;
         assert_eq!(entities_rows.len(), 3);
@@ -220,5 +216,4 @@ mod integration_cli_edit {
 
         Ok(())
     }
-
 }

@@ -1,7 +1,10 @@
+use crate::model::entities::Id as EntityId;
+use ratatui::style::palette::tailwind::{
+    AMBER, BLUE, CYAN, EMERALD, FUCHSIA, GREEN, INDIGO, LIME, ORANGE, PINK, PURPLE, RED, SKY, TEAL,
+    VIOLET, YELLOW,
+};
 use ratatui::style::Color;
 use std::collections::HashMap;
-use ratatui::style::palette::tailwind::{AMBER, BLUE, CYAN, EMERALD, FUCHSIA, GREEN, INDIGO, LIME, ORANGE, PINK, PURPLE, RED, SKY, TEAL, VIOLET, YELLOW};
-use crate::model::entities::Id as EntityId;
 
 /// Default color palette used for highlighting entities in thoughts
 const DEFAULT_ENTITY_COLORS: &[Color] = &[
@@ -62,7 +65,7 @@ impl EntityColorizer {
                 self.assigned_colors.insert(entity, style);
                 style
             }
-            Some(style) => { *style }
+            Some(style) => *style,
         }
     }
 
@@ -121,10 +124,7 @@ mod tests {
 
     #[test]
     fn colorizer_custom_palette() {
-        let mut colorizer = EntityColorizer::with_palette(vec![
-            BLUE.c200,
-            GREEN.c800,
-        ]);
+        let mut colorizer = EntityColorizer::with_palette(vec![BLUE.c200, GREEN.c800]);
 
         let entity1 = EntityId::from("first");
         let first = colorizer.assign_color(entity1);
