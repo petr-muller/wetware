@@ -5,6 +5,7 @@ mod store;
 mod tui;
 
 use crate::model::thoughts::Thought;
+use crate::store::sqlite::SqliteStoreError;
 use crate::tui::app::Thoughts;
 use chrono::Local;
 use clap::{command, Args, Parser, Subcommand};
@@ -49,6 +50,12 @@ enum Commands {
         #[arg(long = "on")]
         entity: Option<String>,
     },
+
+    /// Entity subcommand
+    #[clap(subcommand)]
+    #[command(name = "entity")]
+    Entity(EntityCommands),
+
     /// List entities
     #[command(name = "entities")]
     Entities {},
@@ -56,6 +63,19 @@ enum Commands {
     /// TUI
     #[command(name = "tui")]
     Tui {},
+}
+
+#[derive(Debug, Subcommand)]
+enum EntityCommands {
+    #[command(name = "list")]
+    List {},
+    #[command(name = "describe")]
+    Describe {
+        /// Entity name
+        entity: String,
+        /// Entity description
+        description: String,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -75,28 +95,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Entities {} => {
-            let store = store::sqlite::open(db)?;
-
-            let entities = match store.get_entities() {
-                Ok(entities) => entities,
-                Err(e) => {
-                    eprintln!("Failed to get thoughts: {}", e);
-                    return Err(Box::new(e));
-                }
-            };
-
-            if entities.is_empty() {
-                println!("No entities in the database");
-            } else {
-                for entity in entities {
-                    println!("{}", entity);
-                }
-            }
+            list_entities(&db)?;
         }
+        Commands::Entity(command) => match command {
+            EntityCommands::List {} => {
+                list_entities(&db)?;
+            }
+            EntityCommands::Describe {
+                entity,
+                description,
+            } => {}
+        },
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
             // TODO(muller): Somehow eliminate the matches and use map_err?
-            let store = store::sqlite::open(db)?;
+            let store = store::sqlite::open(&db)?;
             let raw = store.get_thoughts(entity)?;
 
             let mut thoughts = IndexMap::new();
@@ -135,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 viewport: Viewport::Inline(12),
             });
 
-            let store = store::sqlite::open(db)?;
+            let store = store::sqlite::open(&db)?;
 
             let raw = store.get_thoughts(None)?;
 
@@ -159,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             new_thought,
             new_date,
         } => {
-            let store = store::sqlite::open(db)?;
+            let store = store::sqlite::open(&db)?;
             let old = store.get_thought(thought_id)?.as_thought()?;
 
             let date = if let Some(date) = new_date {
@@ -198,7 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
-            let store = store::sqlite::open(db)?;
+            let store = store::sqlite::open(&db)?;
 
             let when = match parse_date_string(date.as_str(), Local::now(), Dialect::Us) {
                 Ok(date) => date.date_naive(),
@@ -223,6 +236,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return Err(Box::new(e));
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+fn list_entities(db: &String) -> Result<(), Box<SqliteStoreError>> {
+    let store = store::sqlite::open(db)?;
+
+    let entities = match store.get_entities() {
+        Ok(entities) => entities,
+        Err(e) => {
+            eprintln!("Failed to get thoughts: {}", e);
+            return Err(Box::new(e));
+        }
+    };
+
+    if entities.is_empty() {
+        println!("No entities in the database");
+    } else {
+        for entity in entities {
+            println!("{}", entity);
         }
     }
     Ok(())

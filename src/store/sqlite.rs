@@ -36,17 +36,18 @@ impl From<rusqlite::Error> for SqliteStoreError {
 
 type Result<T> = std::result::Result<T, SqliteStoreError>;
 
-pub fn open(db: String) -> Result<Store> {
-    let migrations = Migrations::new(vec![M::up(
-        "CREATE TABLE IF NOT EXISTS thoughts (
+pub fn open(db: &String) -> Result<Store> {
+    let migrations = Migrations::new(vec![
+        M::up(
+            "CREATE TABLE IF NOT EXISTS thoughts (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     thought     TEXT NOT NULL,
                     datetime    INTEGER NOT NULL
-                    );
+                   );
                    CREATE TABLE IF NOT EXISTS entities (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     name        TEXT NOT NULL UNIQUE
-                    );
+                   );
                    CREATE TABLE IF NOT EXISTS thoughts_entities (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     thought_id  INTEGER,
@@ -54,8 +55,21 @@ pub fn open(db: String) -> Result<Store> {
                     FOREIGN KEY(thought_id) REFERENCES thoughts(id),
                     FOREIGN KEY(entity_id)  REFERENCES entities(id),
                     UNIQUE(thought_id, entity_id)
-                    );",
-    )]);
+                   );",
+        ),
+        M::up(
+            "ALTER TABLE entities
+                    ADD description TEXT;
+                   CREATE TABLE IF NOT EXISTS entity_description_entities (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entity_id       INTEGER,
+                    entity_ref_id   INTEGER,
+                    FOREIGN KEY(entity_id)      REFERENCES entities(id),
+                    FOREIGN KEY(entity_ref_id)  REFERENCES entities(id),
+                    UNIQUE(entity_id, entity_ref_id)
+                   );",
+        ),
+    ]);
 
     let mut conn = Connection::open(db)?;
 

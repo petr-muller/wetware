@@ -10,6 +10,7 @@ pub struct ThoughtsTableRow {
 pub struct EntitiesTableRow {
     pub id: isize,
     pub name: String,
+    pub description: String,
 }
 
 pub struct ThoughtsEntitiesTableRow {
@@ -42,6 +43,12 @@ impl TestWet {
     pub fn entities(&self) -> Result<Command, Box<dyn std::error::Error>> {
         let mut cmd = self.cmd()?;
         cmd.arg("entities");
+        Ok(cmd)
+    }
+
+    pub fn entity(&self) -> Result<Command, Box<dyn std::error::Error>> {
+        let mut cmd = self.cmd()?;
+        cmd.arg("entity");
         Ok(cmd)
     }
 
@@ -82,11 +89,12 @@ impl TestWet {
 
     pub fn entities_rows(&self) -> Result<Vec<EntitiesTableRow>, Box<dyn std::error::Error>> {
         let conn = self.connection()?;
-        let mut stmt = conn.prepare("SELECT id, name FROM entities")?;
+        let mut stmt = conn.prepare("SELECT id, name, description FROM entities")?;
         let rows = stmt.query_map([], |row| {
             Ok(EntitiesTableRow {
                 id: row.get(0)?,
                 name: row.get(1)?,
+                description: row.get(2).unwrap_or_default(),
             })
         })?;
         let mut entities = Vec::new();
