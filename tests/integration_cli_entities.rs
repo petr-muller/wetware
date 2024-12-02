@@ -94,12 +94,42 @@ mod integration_cli_entities {
 
     #[test]
     fn entity_describe_fails_on_missing_description() -> Result<(), Box<dyn std::error::Error>> {
-        todo!("TODO")
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought about [entity]")?;
+        add.assert().success();
+
+        let mut describe = wet.entity()?;
+
+        describe.arg("describe").arg("entity").assert().failure();
+
+        let entities = wet.entities_rows()?;
+        assert_eq!(1, entities.len());
+
+        let entity = &entities[0];
+        assert_eq!("", entity.description);
+
+        Ok(())
     }
 
     #[test]
     fn entity_describe_fails_on_bad_entity() -> Result<(), Box<dyn std::error::Error>> {
-        todo!("TODO")
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought about entity")?;
+        add.assert().success();
+
+        let mut describe = wet.entity()?;
+
+        describe
+            .arg("describe")
+            .arg("entity")
+            .arg("unexpected description")
+            .assert()
+            .failure();
+
+        let entities = wet.entities_rows()?;
+        assert_eq!(0, entities.len());
+
+        Ok(())
     }
     #[test]
     fn entity_describe_can_contain_entity_references() -> Result<(), Box<dyn std::error::Error>> {

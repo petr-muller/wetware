@@ -58,16 +58,17 @@ pub fn open(db: &String) -> Result<Store> {
                    );",
         ),
         M::up(
-            "ALTER TABLE entities
-                    ADD description TEXT;
+            r#"ALTER TABLE entities
+                     ADD description TEXT NOT NULL;
+                   UPDATE entities SET description = "" WHERE description IS NULL;
                    CREATE TABLE IF NOT EXISTS entity_description_entities (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    entity_id       INTEGER,
-                    entity_ref_id   INTEGER,
-                    FOREIGN KEY(entity_id)      REFERENCES entities(id),
-                    FOREIGN KEY(entity_ref_id)  REFERENCES entities(id),
-                    UNIQUE(entity_id, entity_ref_id)
-                   );",
+                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                     entity_id       INTEGER,
+                     entity_ref_id   INTEGER,
+                     FOREIGN KEY(entity_id)      REFERENCES entities(id),
+                     FOREIGN KEY(entity_ref_id)  REFERENCES entities(id),
+                     UNIQUE(entity_id, entity_ref_id)
+                 );"#,
         ),
     ]);
 
@@ -80,9 +81,14 @@ pub fn open(db: &String) -> Result<Store> {
 
 impl Store {
     pub fn get_entities(&self) -> Result<Vec<entities::Entity>> {
-        let stmt = "SELECT name FROM entities ORDER BY name";
+        let stmt = "SELECT name, description FROM entities ORDER BY name";
         let mut stmt = self.conn.prepare(stmt)?;
-        let rows = stmt.query_map(params![], |row| Ok(entities::Entity { raw: row.get(0)? }))?;
+        let rows = stmt.query_map(params![], |row| {
+            Ok(entities::Entity {
+                name: row.get(0)?,
+                description: row.get(1)?,
+            })
+        })?;
 
         let mut entities = vec![];
         for entity in rows {
@@ -91,6 +97,45 @@ impl Store {
 
         Ok(entities)
     }
+
+    pub fn get_entity(&self, entity_name: &String) -> Result<entities::Entity> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name, description FROM entities WHERE name = ?1")?;
+        let rows = stmt.query_map(params![entity_name], |row| {
+            let name: String = row.get(0)?;
+            let description: String = row.get(1)?;
+            Ok(entities::Entity {
+                name: name,
+                description,
+            })
+        })?;
+
+        let mut entities = vec![];
+        for row in rows {
+            entities.push(row?);
+        }
+
+        match entities.len() {
+            0 => Err(SqliteStoreError {
+                message: format!("No such entity: {entity_name}"),
+            }),
+            1 => Ok(entities[0].clone()),
+            _ => Err(SqliteStoreError {
+                message: format!("BUG: Multiple entities named {entity_name}"),
+            }),
+        }
+    }
+
+    pub fn edit_entity(&self, entity: entities::Entity) -> Result<()> {
+        self.conn.execute(
+            "UPDATE entities SET description = ?1 WHERE name = ?2",
+            params![entity.description, entity.name],
+        )?;
+
+        Ok(())
+    }
+
     pub fn get_thought(&self, thought_id: u32) -> Result<RawThought> {
         let mut stmt = self
             .conn
@@ -167,6 +212,7 @@ impl Store {
 
         Ok(())
     }
+
     pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
         self.conn.execute(
             "UPDATE thoughts SET thought = ?1, datetime = ?2 WHERE id = ?3",
@@ -189,8 +235,9 @@ impl Store {
 
     fn link_thought_to_entity(&self, thought_id: u32, entity: entities::Id) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
-            params![entity],
+            "INSERT INTO entities (name, description) VALUES (?1, ?2) ON CONFLICT(name) DO NOTHING",
+            // descriptions are empty by default
+            params![entity, ""],
         )?;
         let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
         let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;

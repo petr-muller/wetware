@@ -104,7 +104,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             EntityCommands::Describe {
                 entity,
                 description,
-            } => {}
+            } => {
+                let store = store::sqlite::open(&db)?;
+                let mut old = store.get_entity(&entity)?;
+
+                old.description = description;
+
+                match store.edit_entity(old) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        eprintln!("Failed to edit entity: {}", e);
+                        return Err(Box::new(e));
+                    }
+                }
+            }
         },
         Commands::Thoughts { entity } => {
             // TODO(muller): Do not create DB file on get when nonexistent
