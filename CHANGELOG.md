@@ -11,9 +11,9 @@
 * **thought:** expose thought IDs ([#100](https://github.com/petr-muller/wetware/issues/100)) ([e52dcb5](https://github.com/petr-muller/wetware/commit/e52dcb5ee1ac02dacaf9e73438abfa63527154c8))
 * **thoughts:** allow aliased entity references ([#94](https://github.com/petr-muller/wetware/issues/94)) ([10fdff3](https://github.com/petr-muller/wetware/commit/10fdff3ce6edaa02b142da229f67fd4b9f954548))
 * **thoughts:** use dates without times everywhere ([#98](https://github.com/petr-muller/wetware/issues/98)) ([1b62bf6](https://github.com/petr-muller/wetware/commit/1b62bf632d917ab7016608ac0fe49c043a808a1e))
-* thougts and tui share backend ([#93](https://github.com/petr-muller/wetware/issues/93)) ([8d0cb95](https://github.com/petr-muller/wetware/commit/8d0cb958a3faa59f833611437099a1e8a1f0b4f9))
+* thoughts and tui share backend ([#93](https://github.com/petr-muller/wetware/issues/93)) ([8d0cb95](https://github.com/petr-muller/wetware/commit/8d0cb958a3faa59f833611437099a1e8a1f0b4f9))
 * **tui:** extract tui to module, pass tests ([#89](https://github.com/petr-muller/wetware/issues/89)) ([3f91205](https://github.com/petr-muller/wetware/commit/3f9120548e66cb1ceee9e5a4ba500be1758ee695))
-* **tui:** simple persisten entity-&gt;color mapper ([#85](https://github.com/petr-muller/wetware/issues/85)) ([cf032f0](https://github.com/petr-muller/wetware/commit/cf032f01f068e492f0cf405bb22336004184b8ec))
+* **tui:** simple persistent entity-&gt;color mapper ([#85](https://github.com/petr-muller/wetware/issues/85)) ([cf032f0](https://github.com/petr-muller/wetware/commit/cf032f01f068e492f0cf405bb22336004184b8ec))
 
 
 ### Bug Fixes
@@ -27,8 +27,8 @@
 
 * improve thought processing and detect errors ([#30](https://github.com/petr-muller/wetware/issues/30)) ([11e58d1](https://github.com/petr-muller/wetware/commit/11e58d1fbb71999c929395820c58488d65e01729))
 * **wet entities:** new `wet entities` command to list entities ([#53](https://github.com/petr-muller/wetware/issues/53)) ([fd00577](https://github.com/petr-muller/wetware/commit/fd0057708fa0b470bab110095be52a81b1bd9726))
-* **wet thougts:** --on=entity ([#23](https://github.com/petr-muller/wetware/issues/23)) ([dd92c5d](https://github.com/petr-muller/wetware/commit/dd92c5d5b2c0cf016a4cfb666b4665e093241d8c))
-* **wet thougts:** simple command ([#21](https://github.com/petr-muller/wetware/issues/21)) ([05498c3](https://github.com/petr-muller/wetware/commit/05498c39293f12894bb6909b1a98483fee8cba6f))
+* **wet thoughts:** --on=entity ([#23](https://github.com/petr-muller/wetware/issues/23)) ([dd92c5d](https://github.com/petr-muller/wetware/commit/dd92c5d5b2c0cf016a4cfb666b4665e093241d8c))
+* **wet thoughts:** simple command ([#21](https://github.com/petr-muller/wetware/issues/21)) ([05498c3](https://github.com/petr-muller/wetware/commit/05498c39293f12894bb6909b1a98483fee8cba6f))
 
 
 ### Bug Fixes
