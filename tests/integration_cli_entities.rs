@@ -133,6 +133,34 @@ mod integration_cli_entities {
     }
     #[test]
     fn entity_describe_can_contain_entity_references() -> Result<(), Box<dyn std::error::Error>> {
-        todo!("TODO")
+        let wet = TestWet::new()?;
+        let _ = wet.add("Thought about [entity]")?.assert().success();
+        let _ = wet.add("Thought about [reference]")?.assert().success();
+
+        let entities = wet.entities_rows()?;
+        assert_eq!(2, entities.len());
+
+        let entity = &entities[0];
+        let reference = &entities[1];
+
+        let entity_description_links = wet.entity_description_entities_rows()?;
+        assert_eq!(0, entity_description_links.len());
+
+        let mut describe = wet.entity()?;
+        describe
+            .arg("describe")
+            .arg("entity")
+            .arg("Expects entity description to link to [reference]")
+            .assert()
+            .success();
+
+        let entity_description_links = wet.entity_description_entities_rows()?;
+        assert_eq!(1, entity_description_links.len());
+
+        let description_link = &entity_description_links[0];
+        assert_eq!(entity.id, description_link.entity);
+        assert_eq!(reference.id, description_link.to);
+
+        Ok(())
     }
 }

@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 old.description = description;
 
-                match store.edit_entity(old) {
+                match store.edit_entity(old.as_entity()?) {
                     Ok(()) => (),
                     Err(e) => {
                         eprintln!("Failed to edit entity: {}", e);
@@ -203,7 +203,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let raw = if let Some(raw) = new_thought {
                 raw
             } else {
-                old.raw
+                old.text.raw
             };
 
             let thought = match Thought::from_input(raw, date) {

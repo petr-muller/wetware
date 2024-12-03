@@ -1,5 +1,6 @@
 use crate::model::entities;
-use crate::model::thoughts::{Fragment, RawThought, Thought};
+use crate::model::thoughts::{RawThought, Thought};
+use crate::model::fragments::Fragment;
 use chrono::NaiveDate;
 use indexmap::IndexMap;
 use rusqlite::{params, params_from_iter, Connection};
@@ -80,11 +81,11 @@ pub fn open(db: &String) -> Result<Store> {
 }
 
 impl Store {
-    pub fn get_entities(&self) -> Result<Vec<entities::Entity>> {
+    pub fn get_entities(&self) -> Result<Vec<entities::RawEntity>> {
         let stmt = "SELECT name, description FROM entities ORDER BY name";
         let mut stmt = self.conn.prepare(stmt)?;
         let rows = stmt.query_map(params![], |row| {
-            Ok(entities::Entity {
+            Ok(entities::RawEntity {
                 name: row.get(0)?,
                 description: row.get(1)?,
             })
@@ -98,17 +99,14 @@ impl Store {
         Ok(entities)
     }
 
-    pub fn get_entity(&self, entity_name: &String) -> Result<entities::Entity> {
+    pub fn get_entity(&self, entity_name: &String) -> Result<entities::RawEntity> {
         let mut stmt = self
             .conn
             .prepare("SELECT name, description FROM entities WHERE name = ?1")?;
         let rows = stmt.query_map(params![entity_name], |row| {
             let name: String = row.get(0)?;
             let description: String = row.get(1)?;
-            Ok(entities::Entity {
-                name: name,
-                description,
-            })
+            Ok(entities::RawEntity { name, description })
         })?;
 
         let mut entities = vec![];
@@ -130,8 +128,23 @@ impl Store {
     pub fn edit_entity(&self, entity: entities::Entity) -> Result<()> {
         self.conn.execute(
             "UPDATE entities SET description = ?1 WHERE name = ?2",
-            params![entity.description, entity.name],
+            params![entity.description.raw, entity.name],
         )?;
+
+        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = stmt.query_map(params![entity.name], |row| row.get::<usize, u32>(0))?;
+        let entity_id = rows.next().unwrap()?;
+
+        self.conn.execute(
+            "DELETE FROM entity_description_entities WHERE entity_id = ?1",
+            params![entity_id],
+        )?;
+
+        for fragment in entity.description.fragments {
+            if let Fragment::EntityRef { entity, .. } = fragment {
+                self.link_entity_from_description(entity_id, entity)?;
+            }
+        }
 
         Ok(())
     }
@@ -199,12 +212,12 @@ impl Store {
     pub fn add_thought(&self, thought: Thought) -> Result<()> {
         self.conn.execute(
             "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
-            params![thought.raw, thought.added],
+            params![thought.text.raw, thought.added],
         )?;
 
         let thought_id = self.conn.last_insert_rowid() as u32;
 
-        for fragment in thought.fragments {
+        for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
                 self.link_thought_to_entity(thought_id, entity)?;
             }
@@ -216,7 +229,7 @@ impl Store {
     pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
         self.conn.execute(
             "UPDATE thoughts SET thought = ?1, datetime = ?2 WHERE id = ?3",
-            params!(thought.raw, thought.added, thought_id),
+            params!(thought.text.raw, thought.added, thought_id),
         )?;
 
         self.conn.execute(
@@ -224,12 +237,30 @@ impl Store {
             params![thought_id],
         )?;
 
-        for fragment in thought.fragments {
+        for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
                 self.link_thought_to_entity(thought_id, entity)?;
             }
         }
 
+        Ok(())
+    }
+
+    fn link_entity_from_description(&self, described: u32, linked: entities::Id) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO entities (name, description) VALUES (?1, ?2) ON CONFLICT(name) DO NOTHING",
+            // descriptions are empty by default
+            params![linked, ""],
+        )?;
+
+        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = stmt.query_map(params![linked], |row| row.get::<usize, u32>(0))?;
+        let linked_id = rows.next().unwrap()?;
+
+        self.conn.execute(
+            "INSERT INTO entity_description_entities (entity_id, entity_ref_id) VALUES (?1, ?2) ON CONFLICT(entity_id, entity_ref_id) DO NOTHING",
+            params![described, linked_id],
+        )?;
         Ok(())
     }
 
@@ -240,7 +271,7 @@ impl Store {
             params![entity, ""],
         )?;
         let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
+        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, u32>(0))?;
         let entity_id = rows.next().unwrap()?;
         self.conn.execute(
             "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",

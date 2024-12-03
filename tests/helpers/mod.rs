@@ -18,10 +18,16 @@ pub struct ThoughtsEntitiesTableRow {
     pub entity_id: isize,
 }
 
+pub struct EntityDescriptionEntitiesTableRow {
+    pub entity: isize,
+    pub to: isize,
+}
+
 pub struct TestWet {
     db: assert_fs::NamedTempFile,
 }
 
+#[cfg(test)]
 impl TestWet {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
@@ -120,6 +126,27 @@ impl TestWet {
         let mut links = Vec::new();
         for link in rows {
             links.push(link.unwrap())
+        }
+
+        Ok(links)
+    }
+
+    pub fn entity_description_entities_rows(
+        &self,
+    ) -> Result<Vec<EntityDescriptionEntitiesTableRow>, Box<dyn std::error::Error>> {
+        let conn = self.connection()?;
+        let mut stmt =
+            conn.prepare("SELECT entity_id, entity_ref_id FROM entity_description_entities")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(EntityDescriptionEntitiesTableRow {
+                entity: row.get(0)?,
+                to: row.get(1)?,
+            })
+        })?;
+
+        let mut links = vec![];
+        for link in rows {
+            links.push(link?)
         }
 
         Ok(links)

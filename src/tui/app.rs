@@ -1,5 +1,8 @@
 use crate::model::entities::Id as EntityId;
-use crate::model::thoughts::{Fragment, Thought};
+use crate::model::fragments::Fragment;
+use crate::model::thoughts::Thought;
+#[cfg(test)]
+use crate::model::fragments;
 use crate::tui::entity_colorizer::EntityColorizer;
 #[cfg(test)]
 use chrono::NaiveDate;
@@ -102,7 +105,7 @@ fn make_raw_item(id: u32, thought: &Thought) -> String {
     let added = thought.added.format("%Y %b %d").to_string();
 
     let mut line = format!("{added} [{id}] ");
-    for fragment in thought.fragments.iter() {
+    for fragment in thought.text.fragments.iter() {
         match fragment {
             Fragment::Plain { text } => line = line + text,
             Fragment::EntityRef { under, .. } => line = line + under,
@@ -125,7 +128,7 @@ fn make_list_item<'a>(
         Span::styled(id, Style::from(RED.c500).add_modifier(Modifier::BOLD)),
     ];
 
-    for fragment in thought.fragments.iter() {
+    for fragment in thought.text.fragments.iter() {
         let span = match fragment {
             Fragment::Plain { text } => Span::from(text),
             Fragment::EntityRef { entity, under, .. } => {
@@ -141,11 +144,13 @@ fn make_list_item<'a>(
 #[test]
 fn plain_fragment_match() {
     let thought = Thought {
-        raw: "raw".to_string(),
+        text: fragments::String {
+            raw: "raw".to_string(),
+            fragments: vec![Fragment::Plain {
+                text: String::from("raw"),
+            }],
+        },
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![Fragment::Plain {
-            text: String::from("raw"),
-        }],
     };
     assert_eq!("2021 Feb 03 [1] raw", make_raw_item(1, &thought));
 }
@@ -154,13 +159,16 @@ fn plain_fragment_match() {
 #[test]
 fn entity_fragment_match() {
     let thought = Thought {
-        raw: "[raw]".to_string(),
+        text: fragments::String {
+            raw: "[raw]".to_string(),
+            fragments: vec![Fragment::EntityRef {
+                entity: String::from("raw"),
+                under: String::from("raw"),
+                raw: String::from("[raw]"),
+            }],
+        },
+
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![Fragment::EntityRef {
-            entity: String::from("raw"),
-            under: String::from("raw"),
-            raw: String::from("[raw]"),
-        }],
     };
     assert_eq!("2021 Feb 03 [2] raw", make_raw_item(2, &thought));
 }
@@ -169,13 +177,16 @@ fn entity_fragment_match() {
 #[test]
 fn aliased_entity_fragment_match() {
     let thought = Thought {
-        raw: "[raw](entity)".to_string(),
+        text: fragments::String {
+            raw: "[raw](entity)".to_string(),
+            fragments: vec![Fragment::EntityRef {
+                entity: String::from("entity"),
+                under: String::from("raw"),
+                raw: String::from("[raw](entity)"),
+            }],
+        },
+
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![Fragment::EntityRef {
-            entity: String::from("entity"),
-            under: String::from("raw"),
-            raw: String::from("[raw](entity)"),
-        }],
     };
     assert_eq!("2021 Feb 03 [3] raw", make_raw_item(3, &thought));
 }
@@ -184,23 +195,26 @@ fn aliased_entity_fragment_match() {
 #[test]
 fn combined_fragments_match() {
     let thought = Thought {
-        raw: "[a](b) c [d]".to_string(),
+        text: fragments::String {
+            raw: "[a](b) c [d]".to_string(),
+            fragments: vec![
+                Fragment::EntityRef {
+                    entity: String::from("b"),
+                    under: String::from("a"),
+                    raw: String::from("[a](b)"),
+                },
+                Fragment::Plain {
+                    text: String::from(" c "),
+                },
+                Fragment::EntityRef {
+                    entity: String::from("d"),
+                    under: String::from("d"),
+                    raw: String::from("[d]"),
+                },
+            ],
+        },
+
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![
-            Fragment::EntityRef {
-                entity: String::from("b"),
-                under: String::from("a"),
-                raw: String::from("[a](b)"),
-            },
-            Fragment::Plain {
-                text: String::from(" c "),
-            },
-            Fragment::EntityRef {
-                entity: String::from("d"),
-                under: String::from("d"),
-                raw: String::from("[d]"),
-            },
-        ],
     };
     assert_eq!("2021 Feb 03 [4] a c d", make_raw_item(4, &thought));
 }
@@ -265,53 +279,57 @@ fn short_thoughts() -> IndexMap<u32, Thought> {
     v.insert(
         4,
         Thought {
-            raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
+            text: fragments::String {
+                raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
+                fragments: vec![
+                    Fragment::EntityRef {
+                        raw: String::from("[Entity]"),
+                        entity: String::from("Entity"),
+                        under: String::from("Entity"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" does "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[Something]"),
+                        under: String::from("Something"),
+                        entity: String::from("Something"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" with "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[ActuallyEntity](Entity)"),
+                        entity: String::from("Entity"),
+                        under: String::from("ActuallyEntity"),
+                    },
+                ],
+            },
             added: NaiveDate::parse_from_str("2023-08-23", "%Y-%m-%d").unwrap(),
-            fragments: vec![
-                Fragment::EntityRef {
-                    raw: String::from("[Entity]"),
-                    entity: String::from("Entity"),
-                    under: String::from("Entity"),
-                },
-                Fragment::Plain {
-                    text: String::from(" does "),
-                },
-                Fragment::EntityRef {
-                    raw: String::from("[Something]"),
-                    entity: String::from("Something"),
-                    under: String::from("Something"),
-                },
-                Fragment::Plain {
-                    text: String::from(" with "),
-                },
-                Fragment::EntityRef {
-                    raw: String::from("[ActuallyEntity](Entity)"),
-                    entity: String::from("Entity"),
-                    under: String::from("ActuallyEntity"),
-                },
-            ],
         },
     );
     v.insert(
         2,
         Thought {
-            raw: String::from("[Entity] is not [another entity](Another Entity)"),
+            text: fragments::String {
+                raw: String::from("[Entity] is not [another entity](Another Entity)"),
+                fragments: vec![
+                    Fragment::EntityRef {
+                        raw: String::from("Entity"),
+                        entity: String::from("Entity"),
+                        under: String::from("Entity"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" is not "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[another entity](Another Entity"),
+                        entity: String::from("Another Entity"),
+                        under: String::from("another entity"),
+                    },
+                ],
+            },
             added: NaiveDate::parse_from_str("2024-09-24", "%Y-%m-%d").unwrap(),
-            fragments: vec![
-                Fragment::EntityRef {
-                    raw: String::from("Entity"),
-                    entity: String::from("Entity"),
-                    under: String::from("Entity"),
-                },
-                Fragment::Plain {
-                    text: String::from(" is not "),
-                },
-                Fragment::EntityRef {
-                    raw: String::from("[another entity](Another Entity"),
-                    entity: String::from("Another Entity"),
-                    under: String::from("another entity"),
-                },
-            ],
         },
     );
     v
@@ -323,21 +341,25 @@ fn no_ref_thoughts() -> IndexMap<u32, Thought> {
     v.insert(
         3,
         Thought {
-            raw: String::from("First thought id=3"),
+            text: fragments::String {
+                raw: String::from("First thought id=3"),
+                fragments: vec![Fragment::Plain {
+                    text: String::from("First thought id=3"),
+                }],
+            },
             added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
-            fragments: vec![Fragment::Plain {
-                text: String::from("First thought id=3"),
-            }],
         },
     );
     v.insert(
         5,
         Thought {
-            raw: String::from("Second thought id=5"),
+            text: fragments::String {
+                raw: String::from("Second thought id=5"),
+                fragments: vec![Fragment::Plain {
+                    text: String::from("Second thought id=5"),
+                }],
+            },
             added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
-            fragments: vec![Fragment::Plain {
-                text: String::from("Second thought id=5"),
-            }],
         },
     );
     v
