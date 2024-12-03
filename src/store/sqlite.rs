@@ -1,5 +1,6 @@
 use crate::model::entities;
-use crate::model::thoughts::{Fragment, RawThought, Thought};
+use crate::model::thoughts::{RawThought, Thought};
+use crate::model::fragments::Fragment;
 use chrono::NaiveDate;
 use indexmap::IndexMap;
 use rusqlite::{params, params_from_iter, Connection};
@@ -36,17 +37,18 @@ impl From<rusqlite::Error> for SqliteStoreError {
 
 type Result<T> = std::result::Result<T, SqliteStoreError>;
 
-pub fn open(db: String) -> Result<Store> {
+pub fn open(db: &String) -> Result<Store> {
     let migrations = Migrations::new(vec![
-        M::up("CREATE TABLE IF NOT EXISTS thoughts (
+        M::up(
+            "CREATE TABLE IF NOT EXISTS thoughts (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     thought     TEXT NOT NULL,
                     datetime    INTEGER NOT NULL
-                    );
+                   );
                    CREATE TABLE IF NOT EXISTS entities (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     name        TEXT NOT NULL UNIQUE
-                    );
+                   );
                    CREATE TABLE IF NOT EXISTS thoughts_entities (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     thought_id  INTEGER,
@@ -54,37 +56,103 @@ pub fn open(db: String) -> Result<Store> {
                     FOREIGN KEY(thought_id) REFERENCES thoughts(id),
                     FOREIGN KEY(entity_id)  REFERENCES entities(id),
                     UNIQUE(thought_id, entity_id)
-                    );"),
+                   );",
+        ),
+        M::up(
+            r#"ALTER TABLE entities
+                     ADD description TEXT NOT NULL;
+                   UPDATE entities SET description = "" WHERE description IS NULL;
+                   CREATE TABLE IF NOT EXISTS entity_description_entities (
+                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                     entity_id       INTEGER,
+                     entity_ref_id   INTEGER,
+                     FOREIGN KEY(entity_id)      REFERENCES entities(id),
+                     FOREIGN KEY(entity_ref_id)  REFERENCES entities(id),
+                     UNIQUE(entity_id, entity_ref_id)
+                 );"#,
+        ),
     ]);
 
     let mut conn = Connection::open(db)?;
 
-    migrations.to_latest(& mut conn).unwrap();
+    migrations.to_latest(&mut conn).unwrap();
 
     Ok(Store { conn })
 }
 
 impl Store {
-    pub fn get_entities(&self) -> Result<Vec<entities::Entity>> {
-        let stmt = "SELECT name FROM entities ORDER BY name";
+    pub fn get_entities(&self) -> Result<Vec<entities::RawEntity>> {
+        let stmt = "SELECT name, description FROM entities ORDER BY name";
         let mut stmt = self.conn.prepare(stmt)?;
         let rows = stmt.query_map(params![], |row| {
-            Ok(entities::Entity {
-                raw: row.get(0)?,
+            Ok(entities::RawEntity {
+                name: row.get(0)?,
+                description: row.get(1)?,
             })
         })?;
 
         let mut entities = vec![];
         for entity in rows {
             entities.push(entity?);
-        };
+        }
 
         Ok(entities)
     }
-    pub fn get_thought(&self, thought_id: u32) -> Result<RawThought> {
-        let mut stmt = self.conn.prepare(
-            "SELECT thought, datetime FROM thoughts WHERE id = ?1"
+
+    pub fn get_entity(&self, entity_name: &String) -> Result<entities::RawEntity> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name, description FROM entities WHERE name = ?1")?;
+        let rows = stmt.query_map(params![entity_name], |row| {
+            let name: String = row.get(0)?;
+            let description: String = row.get(1)?;
+            Ok(entities::RawEntity { name, description })
+        })?;
+
+        let mut entities = vec![];
+        for row in rows {
+            entities.push(row?);
+        }
+
+        match entities.len() {
+            0 => Err(SqliteStoreError {
+                message: format!("No such entity: {entity_name}"),
+            }),
+            1 => Ok(entities[0].clone()),
+            _ => Err(SqliteStoreError {
+                message: format!("BUG: Multiple entities named {entity_name}"),
+            }),
+        }
+    }
+
+    pub fn edit_entity(&self, entity: entities::Entity) -> Result<()> {
+        self.conn.execute(
+            "UPDATE entities SET description = ?1 WHERE name = ?2",
+            params![entity.description.raw, entity.name],
         )?;
+
+        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = stmt.query_map(params![entity.name], |row| row.get::<usize, u32>(0))?;
+        let entity_id = rows.next().unwrap()?;
+
+        self.conn.execute(
+            "DELETE FROM entity_description_entities WHERE entity_id = ?1",
+            params![entity_id],
+        )?;
+
+        for fragment in entity.description.fragments {
+            if let Fragment::EntityRef { entity, .. } = fragment {
+                self.link_entity_from_description(entity_id, entity)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn get_thought(&self, thought_id: u32) -> Result<RawThought> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT thought, datetime FROM thoughts WHERE id = ?1")?;
         let rows = stmt.query_map(params![thought_id], |row| {
             let raw: String = row.get(0)?;
             let added: NaiveDate = row.get(1)?;
@@ -97,9 +165,13 @@ impl Store {
         }
 
         match thoughts.len() {
-            0 => { Err(SqliteStoreError { message: format!("No thought with id {thought_id}") }) }
+            0 => Err(SqliteStoreError {
+                message: format!("No thought with id {thought_id}"),
+            }),
             1 => Ok(thoughts[0].clone()),
-            _ => Err(SqliteStoreError { message: format!("BUG: Multiple thoughts with id {thought_id}") }),
+            _ => Err(SqliteStoreError {
+                message: format!("BUG: Multiple thoughts with id {thought_id}"),
+            }),
         }
     }
 
@@ -111,7 +183,8 @@ impl Store {
             stmt_lines.append(&mut vec![
                 "JOIN thoughts_entities ON thoughts.id = thoughts_entities.thought_id",
                 "JOIN entities ON thoughts_entities.entity_id = entities.id",
-                "WHERE entities.name = ?1"]);
+                "WHERE entities.name = ?1",
+            ]);
             params.push(entity)
         }
 
@@ -139,12 +212,12 @@ impl Store {
     pub fn add_thought(&self, thought: Thought) -> Result<()> {
         self.conn.execute(
             "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
-            params![thought.raw, thought.added],
+            params![thought.text.raw, thought.added],
         )?;
 
         let thought_id = self.conn.last_insert_rowid() as u32;
 
-        for fragment in thought.fragments {
+        for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
                 self.link_thought_to_entity(thought_id, entity)?;
             }
@@ -152,10 +225,11 @@ impl Store {
 
         Ok(())
     }
+
     pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
         self.conn.execute(
             "UPDATE thoughts SET thought = ?1, datetime = ?2 WHERE id = ?3",
-            params!(thought.raw, thought.added, thought_id),
+            params!(thought.text.raw, thought.added, thought_id),
         )?;
 
         self.conn.execute(
@@ -163,7 +237,7 @@ impl Store {
             params![thought_id],
         )?;
 
-        for fragment in thought.fragments {
+        for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
                 self.link_thought_to_entity(thought_id, entity)?;
             }
@@ -172,13 +246,32 @@ impl Store {
         Ok(())
     }
 
+    fn link_entity_from_description(&self, described: u32, linked: entities::Id) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO entities (name, description) VALUES (?1, ?2) ON CONFLICT(name) DO NOTHING",
+            // descriptions are empty by default
+            params![linked, ""],
+        )?;
+
+        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = stmt.query_map(params![linked], |row| row.get::<usize, u32>(0))?;
+        let linked_id = rows.next().unwrap()?;
+
+        self.conn.execute(
+            "INSERT INTO entity_description_entities (entity_id, entity_ref_id) VALUES (?1, ?2) ON CONFLICT(entity_id, entity_ref_id) DO NOTHING",
+            params![described, linked_id],
+        )?;
+        Ok(())
+    }
+
     fn link_thought_to_entity(&self, thought_id: u32, entity: entities::Id) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO entities (name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
-            params![entity],
+            "INSERT INTO entities (name, description) VALUES (?1, ?2) ON CONFLICT(name) DO NOTHING",
+            // descriptions are empty by default
+            params![entity, ""],
         )?;
         let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, usize>(0))?;
+        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, u32>(0))?;
         let entity_id = rows.next().unwrap()?;
         self.conn.execute(
             "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",
@@ -194,13 +287,17 @@ mod tests {
     use std::error::Error;
     #[test]
     fn sqlite_store_error_display() {
-        let err = SqliteStoreError { message: String::from("this is an error") };
+        let err = SqliteStoreError {
+            message: String::from("this is an error"),
+        };
         assert_eq!(err.to_string(), "SQLite store error: this is an error")
     }
 
     #[test]
     fn sqlite_store_error_error() {
-        let err = SqliteStoreError { message: String::from("this is an error") };
+        let err = SqliteStoreError {
+            message: String::from("this is an error"),
+        };
         let source = err.source();
         assert!(source.is_none())
     }

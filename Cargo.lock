@@ -1172,11 +1172,9 @@ dependencies = [
  "crossterm",
  "indexmap",
  "interim",
- "lazy_static",
  "predicates",
  "pretty_assertions",
  "ratatui",
- "regex",
  "rusqlite",
  "rusqlite_migration",
 ]

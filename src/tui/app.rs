@@ -1,21 +1,24 @@
+use crate::model::entities::Id as EntityId;
+use crate::model::fragments::Fragment;
+use crate::model::thoughts::Thought;
+#[cfg(test)]
+use crate::model::fragments;
 use crate::tui::entity_colorizer::EntityColorizer;
+#[cfg(test)]
+use chrono::NaiveDate;
 use crossterm::event;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use indexmap::IndexMap;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 #[allow(unused_imports)]
 use ratatui::prelude::{Line, Span, StatefulWidget, Stylize, Widget};
 use ratatui::style::palette::tailwind::{ORANGE, RED};
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 use std::io::Write;
-#[cfg(test)]
-use chrono::NaiveDate;
-use indexmap::IndexMap;
-use ratatui::style::{Modifier, Style};
-use crate::model::entities::Id as EntityId;
-use crate::model::thoughts::{Fragment, Thought};
 
 #[derive(Default)]
 pub struct Thoughts {
@@ -102,17 +105,21 @@ fn make_raw_item(id: u32, thought: &Thought) -> String {
     let added = thought.added.format("%Y %b %d").to_string();
 
     let mut line = format!("{added} [{id}] ");
-    for fragment in thought.fragments.iter() {
+    for fragment in thought.text.fragments.iter() {
         match fragment {
-            Fragment::Plain { text } => { line = line + text }
-            Fragment::EntityRef { under, .. } => { line = line + under }
+            Fragment::Plain { text } => line = line + text,
+            Fragment::EntityRef { under, .. } => line = line + under,
         };
     }
 
     line
 }
 
-fn make_list_item<'a>(id: u32, thought: &'a Thought, colorizer: &mut EntityColorizer) -> ListItem<'a> {
+fn make_list_item<'a>(
+    id: u32,
+    thought: &'a Thought,
+    colorizer: &mut EntityColorizer,
+) -> ListItem<'a> {
     let added = thought.added.format("%Y %b %d").to_string();
     let id = format!(" [{id}] ");
 
@@ -121,9 +128,9 @@ fn make_list_item<'a>(id: u32, thought: &'a Thought, colorizer: &mut EntityColor
         Span::styled(id, Style::from(RED.c500).add_modifier(Modifier::BOLD)),
     ];
 
-    for fragment in thought.fragments.iter() {
+    for fragment in thought.text.fragments.iter() {
         let span = match fragment {
-            Fragment::Plain { text } => { Span::from(text) }
+            Fragment::Plain { text } => Span::from(text),
             Fragment::EntityRef { entity, under, .. } => {
                 Span::styled(under, colorizer.assign_color(EntityId::from(entity)))
             }
@@ -137,11 +144,13 @@ fn make_list_item<'a>(id: u32, thought: &'a Thought, colorizer: &mut EntityColor
 #[test]
 fn plain_fragment_match() {
     let thought = Thought {
-        raw: "raw".to_string(),
+        text: fragments::String {
+            raw: "raw".to_string(),
+            fragments: vec![Fragment::Plain {
+                text: String::from("raw"),
+            }],
+        },
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![
-            Fragment::Plain { text: String::from("raw") }
-        ],
     };
     assert_eq!("2021 Feb 03 [1] raw", make_raw_item(1, &thought));
 }
@@ -150,15 +159,16 @@ fn plain_fragment_match() {
 #[test]
 fn entity_fragment_match() {
     let thought = Thought {
-        raw: "[raw]".to_string(),
-        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![
-            Fragment::EntityRef {
+        text: fragments::String {
+            raw: "[raw]".to_string(),
+            fragments: vec![Fragment::EntityRef {
                 entity: String::from("raw"),
                 under: String::from("raw"),
                 raw: String::from("[raw]"),
-            }
-        ],
+            }],
+        },
+
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
     };
     assert_eq!("2021 Feb 03 [2] raw", make_raw_item(2, &thought));
 }
@@ -167,15 +177,16 @@ fn entity_fragment_match() {
 #[test]
 fn aliased_entity_fragment_match() {
     let thought = Thought {
-        raw: "[raw](entity)".to_string(),
-        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![
-            Fragment::EntityRef {
+        text: fragments::String {
+            raw: "[raw](entity)".to_string(),
+            fragments: vec![Fragment::EntityRef {
                 entity: String::from("entity"),
                 under: String::from("raw"),
                 raw: String::from("[raw](entity)"),
-            }
-        ],
+            }],
+        },
+
+        added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
     };
     assert_eq!("2021 Feb 03 [3] raw", make_raw_item(3, &thought));
 }
@@ -184,17 +195,29 @@ fn aliased_entity_fragment_match() {
 #[test]
 fn combined_fragments_match() {
     let thought = Thought {
-        raw: "[a](b) c [d]".to_string(),
+        text: fragments::String {
+            raw: "[a](b) c [d]".to_string(),
+            fragments: vec![
+                Fragment::EntityRef {
+                    entity: String::from("b"),
+                    under: String::from("a"),
+                    raw: String::from("[a](b)"),
+                },
+                Fragment::Plain {
+                    text: String::from(" c "),
+                },
+                Fragment::EntityRef {
+                    entity: String::from("d"),
+                    under: String::from("d"),
+                    raw: String::from("[d]"),
+                },
+            ],
+        },
+
         added: NaiveDate::parse_from_str("2021-02-03", "%Y-%m-%d").unwrap(),
-        fragments: vec![
-            Fragment::EntityRef { entity: String::from("b"), under: String::from("a"), raw: String::from("[a](b)") },
-            Fragment::Plain { text: String::from(" c ") },
-            Fragment::EntityRef { entity: String::from("d"), under: String::from("d"), raw: String::from("[d]") }
-        ],
     };
     assert_eq!("2021 Feb 03 [4] a c d", make_raw_item(4, &thought));
 }
-
 
 #[derive(Default)]
 struct ThoughtsList {
@@ -205,7 +228,6 @@ struct ThoughtsList {
 
     interactive: bool,
 }
-
 
 impl ThoughtsList {
     fn populated(thoughts: IndexMap<u32, Thought>) -> Self {
@@ -229,9 +251,8 @@ impl ThoughtsList {
         let items: Vec<ListItem> = self
             .thoughts
             .iter()
-            .map(|(id, thought)| {
-                make_list_item(*id, thought, &mut self.entity_colorizer)
-            }).collect();
+            .map(|(id, thought)| make_list_item(*id, thought, &mut self.entity_colorizer))
+            .collect();
 
         let list = if self.interactive {
             List::new(items)
@@ -258,80 +279,104 @@ fn short_thoughts() -> IndexMap<u32, Thought> {
     v.insert(
         4,
         Thought {
-            raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
+            text: fragments::String {
+                raw: String::from("[Entity] does [Something] with [ActuallyEntity](Entity)"),
+                fragments: vec![
+                    Fragment::EntityRef {
+                        raw: String::from("[Entity]"),
+                        entity: String::from("Entity"),
+                        under: String::from("Entity"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" does "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[Something]"),
+                        under: String::from("Something"),
+                        entity: String::from("Something"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" with "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[ActuallyEntity](Entity)"),
+                        entity: String::from("Entity"),
+                        under: String::from("ActuallyEntity"),
+                    },
+                ],
+            },
             added: NaiveDate::parse_from_str("2023-08-23", "%Y-%m-%d").unwrap(),
-            fragments: vec![
-                Fragment::EntityRef {
-                    raw: String::from("[Entity]"),
-                    entity: String::from("Entity"),
-                    under: String::from("Entity")
-                },
-                Fragment::Plain { text: String::from(" does ") },
-                Fragment::EntityRef {
-                    raw: String::from("[Something]"),
-                    entity: String::from("Something"),
-                    under: String::from("Something")
-                },
-                Fragment::Plain { text: String::from(" with ") },
-                Fragment::EntityRef {
-                    raw: String::from("[ActuallyEntity](Entity)"),
-                    entity: String::from("Entity"),
-                    under: String::from("ActuallyEntity")
-                }
-            ],
-        });
+        },
+    );
     v.insert(
         2,
         Thought {
-            raw: String::from("[Entity] is not [another entity](Another Entity)"),
+            text: fragments::String {
+                raw: String::from("[Entity] is not [another entity](Another Entity)"),
+                fragments: vec![
+                    Fragment::EntityRef {
+                        raw: String::from("Entity"),
+                        entity: String::from("Entity"),
+                        under: String::from("Entity"),
+                    },
+                    Fragment::Plain {
+                        text: String::from(" is not "),
+                    },
+                    Fragment::EntityRef {
+                        raw: String::from("[another entity](Another Entity"),
+                        entity: String::from("Another Entity"),
+                        under: String::from("another entity"),
+                    },
+                ],
+            },
             added: NaiveDate::parse_from_str("2024-09-24", "%Y-%m-%d").unwrap(),
-            fragments: vec![
-                Fragment::EntityRef {
-                    raw: String::from("Entity"),
-                    entity: String::from("Entity"),
-                    under: String::from("Entity")
-                },
-                Fragment::Plain { text: String::from(" is not ") },
-                Fragment::EntityRef {
-                    raw: String::from("[another entity](Another Entity"),
-                    entity: String::from("Another Entity"),
-                    under: String::from("another entity"),
-                },
-            ],
-        });
+        },
+    );
     v
 }
 
 #[cfg(test)]
 fn no_ref_thoughts() -> IndexMap<u32, Thought> {
     let mut v = IndexMap::new();
-    v.insert(3,
-             Thought {
-                 raw: String::from("First thought id=3"),
-                 added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
-                 fragments: vec![Fragment::Plain { text: String::from("First thought id=3") }],
-             });
-    v.insert(5,
-             Thought {
-                 raw: String::from("Second thought id=5"),
-                 added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
-                 fragments: vec![Fragment::Plain { text: String::from("Second thought id=5") }],
-             });
+    v.insert(
+        3,
+        Thought {
+            text: fragments::String {
+                raw: String::from("First thought id=3"),
+                fragments: vec![Fragment::Plain {
+                    text: String::from("First thought id=3"),
+                }],
+            },
+            added: NaiveDate::parse_from_str("2024-10-01", "%Y-%m-%d").unwrap(),
+        },
+    );
+    v.insert(
+        5,
+        Thought {
+            text: fragments::String {
+                raw: String::from("Second thought id=5"),
+                fragments: vec![Fragment::Plain {
+                    text: String::from("Second thought id=5"),
+                }],
+            },
+            added: NaiveDate::parse_from_str("2024-10-02", "%Y-%m-%d").unwrap(),
+        },
+    );
     v
 }
 
 #[cfg(test)]
 mod thoughts_list_tests {
+    use super::{no_ref_thoughts, short_thoughts, ThoughtsList};
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
-    use ratatui::style::palette::tailwind::{ORANGE,RED};
-    use super::{no_ref_thoughts, short_thoughts, ThoughtsList};
+    use ratatui::style::palette::tailwind::{ORANGE, RED};
 
     use ratatui::style::{Modifier, Style};
 
+    use crate::model::entities::Id;
     #[cfg(test)]
     use pretty_assertions::assert_eq;
-    use crate::model::entities::Id;
 
     #[test]
     fn render_simple_thoughts() {
@@ -395,15 +440,56 @@ mod thoughts_list_tests {
 
         let entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Entity")));
 
-        expected.set_style(Rect::new(line1.find("Entity").unwrap() as u16, 0, "Entity".len() as u16, 1), entity_style);
-        expected.set_style(Rect::new(line1.find("ActuallyEntity").unwrap() as u16, 0, "ActuallyEntity".len() as u16, 1), entity_style);
-        expected.set_style(Rect::new(line2.find("Entity").unwrap() as u16, 1, "Entity".len() as u16, 1), entity_style);
+        expected.set_style(
+            Rect::new(
+                line1.find("Entity").unwrap() as u16,
+                0,
+                "Entity".len() as u16,
+                1,
+            ),
+            entity_style,
+        );
+        expected.set_style(
+            Rect::new(
+                line1.find("ActuallyEntity").unwrap() as u16,
+                0,
+                "ActuallyEntity".len() as u16,
+                1,
+            ),
+            entity_style,
+        );
+        expected.set_style(
+            Rect::new(
+                line2.find("Entity").unwrap() as u16,
+                1,
+                "Entity".len() as u16,
+                1,
+            ),
+            entity_style,
+        );
 
         let something_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Something")));
-        expected.set_style(Rect::new(line1.find("Something").unwrap() as u16, 0, "Something".len() as u16, 1), something_style);
+        expected.set_style(
+            Rect::new(
+                line1.find("Something").unwrap() as u16,
+                0,
+                "Something".len() as u16,
+                1,
+            ),
+            something_style,
+        );
 
-        let another_entity_style = Style::from(tl.entity_colorizer.assign_color(Id::from("Another Entity")));
-        expected.set_style(Rect::new(line2.find("another entity").unwrap() as u16, 1, "another entity".len() as u16, 1), another_entity_style);
+        let another_entity_style =
+            Style::from(tl.entity_colorizer.assign_color(Id::from("Another Entity")));
+        expected.set_style(
+            Rect::new(
+                line2.find("another entity").unwrap() as u16,
+                1,
+                "another entity".len() as u16,
+                1,
+            ),
+            another_entity_style,
+        );
 
         assert_eq!(expected, buf);
     }
@@ -411,16 +497,16 @@ mod thoughts_list_tests {
 
 #[cfg(test)]
 mod thoughts_tests {
-    use std::io;
+    use crate::tui::app::{no_ref_thoughts, Thoughts};
     use crossterm::event::KeyCode;
     use pretty_assertions::assert_eq;
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
     use ratatui::prelude::Style;
-    use ratatui::style::Modifier;
     use ratatui::style::palette::tailwind::{ORANGE, RED};
+    use ratatui::style::Modifier;
     use ratatui::widgets::Widget;
-    use crate::tui::app::{no_ref_thoughts, Thoughts};
+    use std::io;
 
     #[test]
     fn render_simple_thoughts() -> io::Result<()> {

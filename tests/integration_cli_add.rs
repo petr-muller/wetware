@@ -1,10 +1,9 @@
 pub mod helpers;
 
 mod integration_cli_add {
+    use crate::helpers::TestWet;
     use chrono::{Datelike, Local};
     use predicates::prelude::predicate;
-    use crate::helpers::TestWet;
-
 
     #[test]
     fn plain_shows_usage_and_fails() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,7 +51,8 @@ mod integration_cli_add {
     #[test]
     fn stores_thought_in_database_with_today_date() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
-        let _ = wet.add("This is a thought with today date")?
+        let _ = wet
+            .add("This is a thought with today date")?
             .arg("--date")
             .arg("today")
             .assert()
@@ -116,10 +116,7 @@ mod integration_cli_add {
     fn stores_thought_in_database_with_given_date() -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought with a date")?;
-        add.arg("--date")
-            .arg("2023-10-12")
-            .assert()
-            .success();
+        add.arg("--date").arg("2023-10-12").assert().success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(thought_rows.len(), 1);
@@ -131,13 +128,11 @@ mod integration_cli_add {
     }
 
     #[test]
-    fn stores_thought_in_database_with_given_convenient_date() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_given_convenient_date(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought with a convenient date")?;
-        add.arg("--date")
-            .arg("Oct 12, 2022")
-            .assert()
-            .success();
+        add.arg("--date").arg("Oct 12, 2022").assert().success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(thought_rows.len(), 1);
@@ -149,19 +144,19 @@ mod integration_cli_add {
     }
 
     #[test]
-    fn stores_thought_in_database_with_given_convenient_date_without_year() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_given_convenient_date_without_year(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought with a convenient date without year")?;
-        add.arg("--date")
-            .arg("Oct 12")
-            .assert()
-            .success();
+        add.arg("--date").arg("Oct 12").assert().success();
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(thought_rows.len(), 1);
         let thought = &thought_rows[0];
         let now = Local::now().year();
-        let expected = chrono::NaiveDate::parse_from_str("2222-10-12", "%Y-%m-%d")?.with_year(now).unwrap();
+        let expected = chrono::NaiveDate::parse_from_str("2222-10-12", "%Y-%m-%d")?
+            .with_year(now)
+            .unwrap();
         assert_eq!(thought.date, expected);
 
         Ok(())
@@ -195,7 +190,8 @@ mod integration_cli_add {
     }
 
     #[test]
-    fn stores_thought_in_database_with_two_reference_to_one_entity() -> Result<(), Box<dyn std::error::Error>> {
+    fn stores_thought_in_database_with_two_reference_to_one_entity(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut add = wet.add("[subject] and [subject]")?;
         add.assert().success();
@@ -222,7 +218,8 @@ mod integration_cli_add {
     }
 
     #[test]
-    fn two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>> {
+    fn two_thoughts_with_same_entity_adds_just_one_entity() -> Result<(), Box<dyn std::error::Error>>
+    {
         let wet = TestWet::new()?;
         let mut first_add = wet.add("This is a thought about [subject]")?;
         first_add.assert().success();
