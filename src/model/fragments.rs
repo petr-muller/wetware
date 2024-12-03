@@ -212,8 +212,8 @@ pub struct String {
 type Result<T> = std::result::Result<T, Error>;
 
 impl String {
-    pub fn parse(input: &std::string::String) -> Result<Self> {
-        let lex = ThoughtLexer::new(input.as_str());
+    pub fn parse(input: &str) -> Result<Self> {
+        let lex = ThoughtLexer::new(input);
         let mut fragments = vec![];
         for token in lex {
             match token.value {
@@ -235,7 +235,7 @@ impl String {
         }
 
         Ok(Self {
-            raw: input.clone(),
+            raw: input.to_owned(),
             fragments,
         })
     }
