@@ -6,7 +6,7 @@ mod tui;
 
 use crate::model::thoughts::Thought;
 use crate::store::sqlite::SqliteStoreError;
-use crate::tui::app::Thoughts;
+use crate::tui::app::{EntityViewer, Thoughts};
 use chrono::Local;
 use clap::{command, Args, Parser, Subcommand};
 use indexmap::IndexMap;
@@ -74,7 +74,7 @@ enum EntityCommands {
         /// Entity name
         entity: String,
         /// Entity description
-        description: String,
+        description: Option<String>,
     },
 }
 
@@ -108,14 +108,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let store = store::sqlite::open(&db)?;
                 let mut old = store.get_entity(&entity)?;
 
-                old.description = description;
+                if let Some(description) = description {
+                    old.description = description;
 
-                match store.edit_entity(old.as_entity()?) {
-                    Ok(()) => (),
-                    Err(e) => {
-                        eprintln!("Failed to edit entity: {}", e);
-                        return Err(Box::new(e));
+                    match store.edit_entity(old.as_entity()?) {
+                        Ok(()) => (),
+                        Err(e) => {
+                            eprintln!("Failed to edit entity: {}", e);
+                            return Err(Box::new(e));
+                        }
                     }
+                } else {
+                    let tui_result;
+                    // Hypothetically can work without TTY after crossterm-rs/crossterm#919 is fixed?
+                    if std::io::stdout().is_terminal() {
+                        // Does not work without TTY because of the following issue:
+                        //
+                        // cursor::position() fails when piping stdout:
+                        // https://github.com/crossterm-rs/crossterm/issues/919
+                        let mut terminal = ratatui::init_with_options(TerminalOptions {
+                            viewport: Viewport::Inline(1),
+                        });
+
+                        tui_result = EntityViewer::for_entity(old.as_entity()?)
+                            .noninteractive(&mut terminal);
+                        ratatui::restore();
+                    } else {
+                        tui_result = EntityViewer::for_entity(old.as_entity()?).raw();
+                    }
+                    return match tui_result {
+                        Ok(()) => Ok(()),
+                        Err(e) => {
+                            eprintln!("TUI failed: {}", e);
+                            Err(Box::new(e))
+                        }
+                    };
                 }
             }
         },
