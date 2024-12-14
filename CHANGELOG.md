@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/petr-muller/wetware/compare/v0.4.0...v0.5.0) (2024-12-14)
+
+
+### Features
+
+* **db:** use migrations to evolve DB ([#107](https://github.com/petr-muller/wetware/issues/107)) ([4a01912](https://github.com/petr-muller/wetware/commit/4a01912a562a9bb7c5ea65a42be7e82071470a56))
+* **entity describe:** add descriptions for entities ([#110](https://github.com/petr-muller/wetware/issues/110)) ([07c67cd](https://github.com/petr-muller/wetware/commit/07c67cd75ba6b48b8c8f13924cb627fb8133c76c))
+* **entity describe:** show descriptions ([#114](https://github.com/petr-muller/wetware/issues/114)) ([557dec1](https://github.com/petr-muller/wetware/commit/557dec1df9a4033d64c9ab4546a893d7299c7794))
+
 ## [0.4.0](https://github.com/petr-muller/wetware/compare/v0.3.0...v0.4.0) (2024-11-10)
 
 
