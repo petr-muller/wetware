@@ -93,20 +93,71 @@ mod integration_cli_entities {
     }
 
     #[test]
-    fn entity_describe_fails_on_missing_description() -> Result<(), Box<dyn std::error::Error>> {
+    fn plain_entity_describe_emits_message_when_entity_has_no_description(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought about [entity]")?;
         add.assert().success();
-
-        let mut describe = wet.entity()?;
-
-        describe.arg("describe").arg("entity").assert().failure();
 
         let entities = wet.entities_rows()?;
         assert_eq!(1, entities.len());
 
         let entity = &entities[0];
         assert_eq!("", entity.description);
+
+        let expected_output = String::from("Entity entity has no description");
+        let mut describe = wet.entity()?;
+        describe
+            .arg("describe")
+            .arg("entity")
+            .assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn plain_entity_describe_emits_description() -> Result<(), Box<dyn std::error::Error>> {
+        let wet = TestWet::new()?;
+        let mut add = wet.add("Thought about [entity]")?;
+        add.assert().success();
+
+        let mut add = wet.add("Thought about [different] entity")?;
+        add.assert().success();
+
+        let mut describe = wet.entity()?;
+
+        describe
+            .arg("describe")
+            .arg("entity")
+            .arg("Describes entity by comparing it to a [different] entity")
+            .assert()
+            .success();
+
+        let entities = wet.entities_rows()?;
+        assert_eq!(2, entities.len());
+
+        for item in &entities {
+            if item.name == "entity" {
+                assert_eq!(
+                    "Describes entity by comparing it to a [different] entity",
+                    item.description
+                );
+            } else {
+                assert_eq!("", item.description);
+            }
+        }
+
+        let expected_output =
+            String::from("Describes entity by comparing it to a different entity");
+        let mut describe = wet.entity()?;
+        describe
+            .arg("describe")
+            .arg("entity")
+            .assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
 
         Ok(())
     }

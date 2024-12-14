@@ -1,8 +1,8 @@
-use crate::model::entities::Id as EntityId;
-use crate::model::fragments::Fragment;
-use crate::model::thoughts::Thought;
+use crate::model::entities::{Entity, Id as EntityId};
 #[cfg(test)]
 use crate::model::fragments;
+use crate::model::fragments::Fragment;
+use crate::model::thoughts::Thought;
 use crate::tui::entity_colorizer::EntityColorizer;
 #[cfg(test)]
 use chrono::NaiveDate;
@@ -15,19 +15,182 @@ use ratatui::layout::Rect;
 use ratatui::prelude::{Line, Span, StatefulWidget, Stylize, Widget};
 use ratatui::style::palette::tailwind::{ORANGE, RED};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState};
+use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 use std::io::Write;
 
+pub struct EntityViewer {
+    view: EntityView,
+}
+
+impl EntityViewer {
+    pub fn for_entity(entity: Entity) -> Self {
+        Self {
+            view: EntityView {
+                entity,
+                entity_colorizer: Default::default(),
+            },
+        }
+    }
+
+    pub fn noninteractive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        terminal.draw(|frame| self.draw(frame))?;
+        Ok(())
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        frame.render_widget(self, frame.area());
+    }
+
+    pub fn raw(&mut self) -> io::Result<()> {
+        self.view.raw();
+        Ok(())
+    }
+}
+
+impl Widget for &mut EntityViewer {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.view.render(area, buf)
+    }
+}
+
+struct EntityView {
+    entity: Entity,
+    entity_colorizer: EntityColorizer,
+}
+
+impl EntityView {
+    fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        let mut items = if self.entity.description.fragments.is_empty() {
+            vec![
+                Span::from("Entity "),
+                Span::styled(
+                    &self.entity.name,
+                    self.entity_colorizer
+                        .assign_color(EntityId::from(&self.entity.name)),
+                ),
+                Span::from(" has no description"),
+            ]
+        } else {
+            vec![]
+        };
+
+        items.extend(as_spans(
+            &self.entity.description.fragments,
+            &mut self.entity_colorizer,
+        ));
+
+        Paragraph::new(Line::from(items)).render(area, buf);
+    }
+
+    fn raw(&mut self) {
+        let mut line = if self.entity.description.fragments.is_empty() {
+            format!("Entity {} has no description", self.entity.name)
+        } else {
+            String::new()
+        };
+
+        for fragment in self.entity.description.fragments.iter() {
+            match fragment {
+                Fragment::Plain { text } => line = line + text,
+                Fragment::EntityRef { under, .. } => line = line + under,
+            };
+        }
+
+        println!("{}", line);
+        io::stdout().flush().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod entity_viewer_tests {
+    use crate::model::entities::{Id as EntityId, RawEntity};
+    use crate::tui::app::EntityViewer;
+    use pretty_assertions::assert_eq;
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+    use ratatui::style::Style;
+    use ratatui::widgets::Widget;
+    use std::io;
+
+    #[test]
+    fn render_entity_with_description() -> io::Result<()> {
+        let mut viewer = EntityViewer::for_entity(
+            RawEntity {
+                name: String::from("SomeEntity"),
+                description: String::from(
+                    "A description that refers to [another] thing and also [one] more",
+                ),
+            }
+            .as_entity()
+            .unwrap(),
+        );
+
+        let style_for_another = Style::from(
+            viewer
+                .view
+                .entity_colorizer
+                .assign_color(EntityId::from("another")),
+        );
+        let style_for_one = Style::from(
+            viewer
+                .view
+                .entity_colorizer
+                .assign_color(EntityId::from("one")),
+        );
+
+        let line = "A description that refers to another thing and also one more";
+
+        let mut expected = Buffer::with_lines(vec![line]);
+        expected.set_style(Rect::new(29, 0, 7, 1), style_for_another);
+        expected.set_style(Rect::new(52, 0, 3, 1), style_for_one);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, line.len() as u16, 1));
+
+        viewer.render(buf.area, &mut buf);
+        assert_eq!(expected, buf);
+
+        Ok(())
+    }
+
+    #[test]
+    fn render_entity_without_description() -> io::Result<()> {
+        let mut viewer = EntityViewer::for_entity(
+            RawEntity {
+                name: String::from("SomeEntity"),
+                description: String::default(),
+            }
+            .as_entity()
+            .unwrap(),
+        );
+
+        let style = Style::from(
+            viewer
+                .view
+                .entity_colorizer
+                .assign_color(EntityId::from("SomeEntity")),
+        );
+
+        let line = "Entity SomeEntity has no description";
+
+        let mut expected = Buffer::with_lines(vec![line]);
+        expected.set_style(Rect::new(7, 0, 10, 1), style);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, line.len() as u16, 1));
+
+        viewer.render(buf.area, &mut buf);
+        assert_eq!(expected, buf);
+
+        Ok(())
+    }
+}
+
 #[derive(Default)]
 pub struct Thoughts {
     should_exit: bool,
-
     view: ThoughtsList,
 }
-
-impl Thoughts {}
 
 impl Thoughts {
     pub fn interactive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -128,16 +291,23 @@ fn make_list_item<'a>(
         Span::styled(id, Style::from(RED.c500).add_modifier(Modifier::BOLD)),
     ];
 
-    for fragment in thought.text.fragments.iter() {
-        let span = match fragment {
+    items.extend(as_spans(&thought.text.fragments, colorizer));
+
+    ListItem::new(Line::from(items))
+}
+
+fn as_spans<'a>(fragments: &'a [Fragment], colorizer: &mut EntityColorizer) -> Vec<Span<'a>> {
+    let mut items = vec![];
+    for fragment in fragments.iter() {
+        items.push(match fragment {
             Fragment::Plain { text } => Span::from(text),
             Fragment::EntityRef { entity, under, .. } => {
                 Span::styled(under, colorizer.assign_color(EntityId::from(entity)))
             }
-        };
-        items.push(span);
+        });
     }
-    ListItem::new(Line::from(items))
+
+    items
 }
 
 #[cfg(test)]

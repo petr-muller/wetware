@@ -100,7 +100,7 @@ impl TestWet {
             Ok(EntitiesTableRow {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                description: row.get(2).unwrap_or_default(),
+                description: row.get(2)?,
             })
         })?;
         let mut entities = Vec::new();
