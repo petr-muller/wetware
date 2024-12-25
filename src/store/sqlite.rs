@@ -60,8 +60,7 @@ pub fn open(db: &String) -> Result<Store> {
         ),
         M::up(
             r#"ALTER TABLE entities
-                     ADD description TEXT NOT NULL;
-                   UPDATE entities SET description = "" WHERE description IS NULL;
+                   ADD description TEXT NOT NULL DEFAULT "";
                    CREATE TABLE IF NOT EXISTS entity_description_entities (
                      id              INTEGER PRIMARY KEY AUTOINCREMENT,
                      entity_id       INTEGER,
