@@ -4,7 +4,7 @@ use crate::model::fragments::Fragment;
 use chrono::NaiveDate;
 use std::fmt::Formatter;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Thought {
     pub added: NaiveDate,
     pub text: fragments::String,
@@ -238,4 +238,9 @@ mod raw_thought_tests {
         );
         Ok(())
     }
+}
+
+pub struct AddedThought {
+    pub id: u32,
+    pub thought: Thought,
 }

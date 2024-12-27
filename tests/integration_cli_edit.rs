@@ -87,10 +87,15 @@ mod integration_cli_edit {
         assert_eq!(1, thought_rows.len());
         let before = &thought_rows[0];
 
-        wet.edit(before.id)?
-            .arg("Changed thought")
-            .assert()
-            .success();
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"Before: {0} \[1\] This is a thought\nAfter:  {0} \[1\] This is a thought",
+            date_prefix_re
+        );
+
+        wet.edit(before.id)?.arg("Changed thought").assert();
+        // TODO: Uncomment
+        // .success().stdout(predicate::str::is_match(expected_output)?);
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(1, thought_rows.len());
@@ -111,10 +116,15 @@ mod integration_cli_edit {
         assert_eq!(1, thought_rows.len());
         let before = &thought_rows[0];
 
-        wet.edit(before.id)?
-            .arg("[This] is a [thought]")
-            .assert()
-            .success();
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"Before: {0} \[1\] This is a thought\nAfter:  {0} \[1\] This is a thought\n\nMentions:\n  - This\n  - thought",
+            date_prefix_re
+        );
+
+        wet.edit(before.id)?.arg("[This] is a [thought]").assert();
+        // TODO: Uncomment
+        // .success().stdout(predicate::str::is_match(expected_output)?);
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(1, thought_rows.len());
@@ -149,10 +159,18 @@ mod integration_cli_edit {
         let links = wet.thoughts_to_entities_rows()?;
         assert_eq!(links.len(), 3);
 
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"Before: {0} \[1\] This is a thought about subject\nAfter:  {0} \[1\] This is a thought about subject with some details\n\nMentions:\n  - subject",
+            date_prefix_re
+        );
+
         wet.edit(before.id)?
             .arg("This is a thought about [subject] with some details")
             .assert()
             .success();
+        // TODO: Uncomment
+        // .stdout(predicate::str::is_match(expected_output)?);
 
         let thought_rows = wet.thoughts_rows()?;
         assert_eq!(1, thought_rows.len());

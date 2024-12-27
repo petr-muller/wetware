@@ -70,9 +70,12 @@ mod integration_cli_entities {
 
     #[test]
     fn entity_describe_adds_description_to_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let expected_output = r"Description for entity entity:\nexpected description".to_string();
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought about [entity]")?;
         add.assert().success();
+        // TODO: Uncomment
+        // .stdout(predicate::str::is_match(expected_output)?);
 
         let mut describe = wet.entity()?;
 
@@ -196,6 +199,8 @@ mod integration_cli_entities {
 
         let entity_description_links = wet.entity_description_entities_rows()?;
         assert_eq!(0, entity_description_links.len());
+
+        let expected_output = r"Description for entity entity:\nexpected description\n\nMentions:\n  - Expects entity description to link to reference".to_string();
 
         let mut describe = wet.entity()?;
         describe
