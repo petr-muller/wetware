@@ -19,9 +19,13 @@ mod integration_cli_add {
 
     #[test]
     fn stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(r"{0} \[1\] This is a simple thought", date_prefix_re);
         let wet = TestWet::new()?;
         let mut add = wet.add("This is a simple thought")?;
-        add.assert().success();
+        add.assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
 
         let thoughts_rows = wet.thoughts_rows()?;
 
@@ -164,9 +168,16 @@ mod integration_cli_add {
 
     #[test]
     fn stores_thought_with_entity_in_database() -> Result<(), Box<dyn std::error::Error>> {
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"{0} \[1\] This is a thought about subject\n\nMentions:\n  - subject",
+            date_prefix_re
+        );
         let wet = TestWet::new()?;
         let mut add = wet.add("This is a thought about [subject]")?;
-        add.assert().success();
+        add.assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
 
         let thoughts_rows = wet.thoughts_rows()?;
         assert_eq!(thoughts_rows.len(), 1);
@@ -192,9 +203,17 @@ mod integration_cli_add {
     #[test]
     fn stores_thought_in_database_with_two_reference_to_one_entity(
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"{0} \[1\] subject and subject\n\nMentions:\n  - subject",
+            date_prefix_re
+        );
+
         let wet = TestWet::new()?;
         let mut add = wet.add("[subject] and [subject]")?;
-        add.assert().success();
+        add.assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
 
         let thoughts_rows = wet.thoughts_rows()?;
         assert_eq!(thoughts_rows.len(), 1);
@@ -239,9 +258,16 @@ mod integration_cli_add {
     }
     #[test]
     fn adds_thought_with_aliased_entity() -> Result<(), Box<dyn std::error::Error>> {
+        let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
+        let expected_output = format!(
+            r"{0} \[1\] Thought about subject\n\nMentions:\n  - Subject With Complicated Name \| aliased as subject",
+            date_prefix_re
+        );
         let wet = TestWet::new()?;
         let mut add = wet.add("Thought about [subject](Subject With Complicated Name)")?;
-        add.assert().success();
+        add.assert()
+            .success()
+            .stdout(predicate::str::is_match(expected_output)?);
 
         let entities_rows = wet.entities_rows()?;
         assert_eq!(entities_rows.len(), 1);

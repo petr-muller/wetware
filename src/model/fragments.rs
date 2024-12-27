@@ -116,7 +116,6 @@ mod lexer_tests {
     }
 }
 
-
 // TODO(muller): As an exercise, I will implement a lexer manually using Eli Bendersky's blog post:
 //               https://eli.thegreenplace.net/2022/rewriting-the-lexer-benchmark-in-rust/
 //               Eventually I may want to use [Logos](https://github.com/maciejhirsz/logos)
@@ -305,7 +304,7 @@ pub(crate) mod lexer {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Fragment {
     Plain {
         text: std::string::String,
@@ -317,7 +316,7 @@ pub enum Fragment {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct String {
     pub raw: std::string::String,
     pub fragments: Vec<Fragment>,

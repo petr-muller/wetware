@@ -6,7 +6,7 @@ mod tui;
 
 use crate::model::thoughts::Thought;
 use crate::store::sqlite::SqliteStoreError;
-use crate::tui::app::{EntityViewer, Thoughts};
+use crate::tui::app::{AddConfirmation, EntityViewer, Thoughts};
 use chrono::Local;
 use clap::{command, Args, Parser, Subcommand};
 use indexmap::IndexMap;
@@ -269,13 +269,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            match store.add_thought(thought) {
-                Ok(()) => (),
+            let added = match store.add_thought(thought) {
+                Ok(added) => added,
                 Err(e) => {
                     eprintln!("Failed to add thought: {}", e);
                     return Err(Box::new(e));
                 }
-            }
+            };
+
+            let mut tui = AddConfirmation::for_thought(added);
+            // Hypothetically can work without TTY after crossterm-rs/crossterm#919 is fixed?
+            let result = if std::io::stdout().is_terminal() {
+                let output_size = u16::try_from(tui.needs_lines()).unwrap_or(u16::MAX);
+
+                // Does not work without TTY because of the following issue:
+                //
+                // cursor::position() fails when piping stdout:
+                // https://github.com/crossterm-rs/crossterm/issues/919
+                let mut terminal = ratatui::init_with_options(TerminalOptions {
+                    viewport: Viewport::Inline(output_size),
+                });
+
+                let result = tui.noninteractive(&mut terminal);
+                ratatui::restore();
+                result
+            } else {
+                tui.raw()
+            };
+
+            return match result {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    eprintln!("TUI failed: {}", e);
+                    Err(Box::new(e))
+                }
+            };
         }
     }
     Ok(())

@@ -2,7 +2,7 @@ use crate::model::entities::{Entity, Id as EntityId};
 #[cfg(test)]
 use crate::model::fragments;
 use crate::model::fragments::Fragment;
-use crate::model::thoughts::Thought;
+use crate::model::thoughts::{AddedThought, Thought};
 use crate::tui::entity_colorizer::EntityColorizer;
 #[cfg(test)]
 use chrono::NaiveDate;
@@ -19,6 +19,245 @@ use ratatui::widgets::{HighlightSpacing, List, ListItem, ListState, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 use std::io::Write;
+
+pub struct AddConfirmation {
+    view: AddConfirmationView,
+}
+
+impl AddConfirmation {
+    pub fn for_thought(thought: AddedThought) -> Self {
+        Self {
+            view: AddConfirmationView {
+                thought,
+                entity_colorizer: Default::default(),
+            },
+        }
+    }
+
+    pub fn noninteractive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        terminal.draw(|frame| self.draw(frame))?;
+        Ok(())
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        frame.render_widget(self, frame.area());
+    }
+
+    pub fn raw(&mut self) -> io::Result<()> {
+        self.view.raw();
+        Ok(())
+    }
+
+    pub fn needs_lines(&self) -> u32 {
+        let mut entity_refs = 0;
+        let fragments = &self.view.thought.thought.text.fragments;
+        for fragment in fragments {
+            if let Fragment::EntityRef { .. } = fragment {
+                entity_refs += 1;
+            }
+        }
+        if entity_refs == 0 {
+            1
+        } else {
+            (3 + entity_refs) as u32
+        }
+    }
+}
+
+impl Widget for &mut AddConfirmation {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.view.render(area, buf)
+    }
+}
+
+struct AddConfirmationView {
+    thought: AddedThought,
+    entity_colorizer: EntityColorizer,
+}
+
+impl AddConfirmationView {
+    fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        let line = make_thought_line(
+            self.thought.id,
+            &self.thought.thought,
+            &mut self.entity_colorizer,
+        );
+
+        let mut lines = vec![line];
+
+        let fragments = &self.thought.thought.text.fragments;
+
+        if !fragments.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from("Mentions:"));
+            for fragment in fragments {
+                if let Fragment::EntityRef { entity, under, .. } = fragment {
+                    let entity_style = self.entity_colorizer.assign_color(EntityId::from(entity));
+                    let mut items = vec![Span::from("  - "), Span::styled(entity, entity_style)];
+                    if under != entity {
+                        items.push(Span::from(" | aliased as "));
+                        items.push(Span::styled(under, entity_style))
+                    };
+                    lines.push(Line::from(items))
+                }
+            }
+        }
+
+        Paragraph::new(lines).render(area, buf);
+    }
+
+    fn raw(&mut self) {
+        let thought_line = make_raw_item(self.thought.id, &self.thought.thought);
+        println!("{}", thought_line);
+
+        let fragments = &self.thought.thought.text.fragments;
+        if !fragments.is_empty() {
+            println!("\nMentions:");
+            for fragment in fragments {
+                if let Fragment::EntityRef { entity, under, .. } = fragment {
+                    if entity == under {
+                        println!("  - {}", entity)
+                    } else {
+                        println!("  - {} | aliased as {}", entity, under)
+                    }
+                }
+            }
+        }
+        io::stdout().flush().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod add_confirmation_tests {
+    use crate::model::entities::Id;
+    use crate::model::thoughts::{AddedThought, Thought};
+    use crate::tui::app::AddConfirmation;
+    use crate::tui::entity_colorizer::EntityColorizer;
+    use chrono::NaiveDate;
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+    use ratatui::prelude::{Modifier, Style};
+    use ratatui::style::palette::tailwind::{ORANGE, RED};
+    use ratatui::widgets::Widget;
+    use std::io;
+
+    #[test]
+    fn needs_lines() -> io::Result<()> {
+        let confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 42,
+            thought: Thought::from_input(
+                String::from("No entities"),
+                NaiveDate::from_yo_opt(2024, 360).unwrap(),
+            )
+            .unwrap(),
+        });
+
+        assert_eq!(confirmation.needs_lines(), 1);
+
+        let confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 42,
+            thought: Thought::from_input(
+                String::from("[Entity]"),
+                NaiveDate::from_yo_opt(2024, 360).unwrap(),
+            )
+            .unwrap(),
+        });
+
+        assert_eq!(confirmation.needs_lines(), 4);
+
+        let confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 42,
+            thought: Thought::from_input(
+                String::from("[Entity] and [Other]"),
+                NaiveDate::from_yo_opt(2024, 360).unwrap(),
+            )
+            .unwrap(),
+        });
+
+        assert_eq!(confirmation.needs_lines(), 5);
+
+        Ok(())
+    }
+
+    #[test]
+    fn render_thought_without_entities() -> io::Result<()> {
+        let mut confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 42,
+            thought: Thought::from_input(
+                String::from("No entities"),
+                NaiveDate::from_yo_opt(2024, 360).unwrap(),
+            )
+            .unwrap(),
+        });
+
+        let line = "2024 Dec 25 [42] No entities";
+
+        let date_style = Style::from(ORANGE.c500);
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+
+        let mut expected = Buffer::with_lines(vec![line]);
+        expected.set_style(Rect::new(0, 0, 11, 1), date_style);
+        expected.set_style(Rect::new(11, 0, 6, 1), id_style);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, line.len() as u16, 1));
+
+        confirmation.render(buf.area, &mut buf);
+        assert_eq!(expected, buf);
+
+        Ok(())
+    }
+
+    #[test]
+    fn render_thought_with_entities() -> io::Result<()> {
+        let mut confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 42,
+            thought: Thought::from_input(
+                String::from("Thought about [a] and [b] and [Big C](c)"),
+                NaiveDate::from_yo_opt(2024, 362).unwrap(),
+            )
+            .unwrap(),
+        });
+
+        let thought_line = "2024 Dec 27 [42] Thought about a and b and Big C";
+
+        let mut colorizer = EntityColorizer::new();
+
+        let mut expected = Buffer::with_lines(vec![
+            thought_line,
+            "",
+            "Mentions:",
+            "  - a",
+            "  - b",
+            "  - c | aliased as Big C",
+        ]);
+
+        let date_style = Style::from(ORANGE.c500);
+        expected.set_style(Rect::new(0, 0, 11, 1), date_style);
+
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+        expected.set_style(Rect::new(11, 0, 6, 1), id_style);
+
+        let a_style = Style::from(colorizer.assign_color(Id::from("a")));
+        expected.set_style(Rect::new(31, 0, 1, 1), a_style);
+        expected.set_style(Rect::new(4, 3, 1, 1), a_style);
+
+        let b_style = Style::from(colorizer.assign_color(Id::from("b")));
+        expected.set_style(Rect::new(37, 0, 1, 1), b_style);
+        expected.set_style(Rect::new(4, 4, 1, 1), b_style);
+
+        let c_style = Style::from(colorizer.assign_color(Id::from("c")));
+        expected.set_style(Rect::new(43, 0, 5, 1), c_style);
+        expected.set_style(Rect::new(4, 5, 1, 1), c_style);
+        expected.set_style(Rect::new(19, 5, 5, 1), c_style);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, thought_line.len() as u16, 6));
+
+        confirmation.render(buf.area, &mut buf);
+        assert_eq!(expected, buf);
+
+        Ok(())
+    }
+}
 
 pub struct EntityViewer {
     view: EntityView,
@@ -278,11 +517,11 @@ fn make_raw_item(id: u32, thought: &Thought) -> String {
     line
 }
 
-fn make_list_item<'a>(
+fn make_thought_line<'a>(
     id: u32,
     thought: &'a Thought,
     colorizer: &mut EntityColorizer,
-) -> ListItem<'a> {
+) -> Line<'a> {
     let added = thought.added.format("%Y %b %d").to_string();
     let id = format!(" [{id}] ");
 
@@ -293,7 +532,7 @@ fn make_list_item<'a>(
 
     items.extend(as_spans(&thought.text.fragments, colorizer));
 
-    ListItem::new(Line::from(items))
+    Line::from(items)
 }
 
 fn as_spans<'a>(fragments: &'a [Fragment], colorizer: &mut EntityColorizer) -> Vec<Span<'a>> {
@@ -421,7 +660,9 @@ impl ThoughtsList {
         let items: Vec<ListItem> = self
             .thoughts
             .iter()
-            .map(|(id, thought)| make_list_item(*id, thought, &mut self.entity_colorizer))
+            .map(|(id, thought)| {
+                ListItem::from(make_thought_line(*id, thought, &mut self.entity_colorizer))
+            })
             .collect();
 
         let list = if self.interactive {

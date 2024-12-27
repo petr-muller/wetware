@@ -1,6 +1,6 @@
 use crate::model::entities;
-use crate::model::thoughts::{RawThought, Thought};
 use crate::model::fragments::Fragment;
+use crate::model::thoughts::{AddedThought, RawThought, Thought};
 use chrono::NaiveDate;
 use indexmap::IndexMap;
 use rusqlite::{params, params_from_iter, Connection};
@@ -208,7 +208,7 @@ impl Store {
         Ok(thoughts)
     }
 
-    pub fn add_thought(&self, thought: Thought) -> Result<()> {
+    pub fn add_thought(&self, thought: Thought) -> Result<AddedThought> {
         self.conn.execute(
             "INSERT INTO thoughts (thought, datetime) VALUES (?1, ?2)",
             params![thought.text.raw, thought.added],
@@ -216,13 +216,18 @@ impl Store {
 
         let thought_id = self.conn.last_insert_rowid() as u32;
 
+        let added = AddedThought {
+            id: thought_id,
+            thought: thought.clone(),
+        };
+
         for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
                 self.link_thought_to_entity(thought_id, entity)?;
             }
         }
 
-        Ok(())
+        Ok(added)
     }
 
     pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
