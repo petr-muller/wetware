@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/petr-muller/wetware/compare/v0.4.0...v0.5.0) (2024-12-28)
+
+
+### Features
+
+* **add:** mark newly added entities in confirmation ([#119](https://github.com/petr-muller/wetware/issues/119)) ([420e5cb](https://github.com/petr-muller/wetware/commit/420e5cb67dd9953dc63bf2ef59aadedef093fdc6))
+* **add:** show confirmation message ([#118](https://github.com/petr-muller/wetware/issues/118)) ([b3dcffa](https://github.com/petr-muller/wetware/commit/b3dcffa99909e0fe947ec3e6b7c58fa762c7dde5))
+* **db:** use migrations to evolve DB ([#107](https://github.com/petr-muller/wetware/issues/107)) ([4a01912](https://github.com/petr-muller/wetware/commit/4a01912a562a9bb7c5ea65a42be7e82071470a56))
+* **entity describe:** add descriptions for entities ([#110](https://github.com/petr-muller/wetware/issues/110)) ([07c67cd](https://github.com/petr-muller/wetware/commit/07c67cd75ba6b48b8c8f13924cb627fb8133c76c))
+* **entity describe:** show descriptions ([#114](https://github.com/petr-muller/wetware/issues/114)) ([557dec1](https://github.com/petr-muller/wetware/commit/557dec1df9a4033d64c9ab4546a893d7299c7794))
+
+
+### Bug Fixes
+
+* **db:** Fix description column add ([#116](https://github.com/petr-muller/wetware/issues/116)) ([1f99b46](https://github.com/petr-muller/wetware/commit/1f99b46ada3348768a4c8441097cc29250efb496))
+
 ## [0.4.0](https://github.com/petr-muller/wetware/compare/v0.3.0...v0.4.0) (2024-11-10)
 
 
