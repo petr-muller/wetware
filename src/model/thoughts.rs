@@ -1,6 +1,6 @@
-use crate::model::fragments;
 #[cfg(test)]
 use crate::model::fragments::Fragment;
+use crate::model::{entities, fragments};
 use chrono::NaiveDate;
 use std::fmt::Formatter;
 
@@ -243,4 +243,5 @@ mod raw_thought_tests {
 pub struct AddedThought {
     pub id: u32,
     pub thought: Thought,
+    pub new_entities: Vec<entities::Id>,
 }

@@ -20,7 +20,7 @@ mod integration_cli_add {
     #[test]
     fn stores_thought_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
-        let expected_output = format!(r"{0} \[1\] This is a simple thought", date_prefix_re);
+        let expected_output = format!(r"{0} \[1\] This is a simple thought\n$", date_prefix_re);
         let wet = TestWet::new()?;
         let mut add = wet.add("This is a simple thought")?;
         add.assert()
@@ -170,7 +170,7 @@ mod integration_cli_add {
     fn stores_thought_with_entity_in_database() -> Result<(), Box<dyn std::error::Error>> {
         let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
         let expected_output = format!(
-            r"{0} \[1\] This is a thought about subject\n\nMentions:\n  - subject",
+            r"{0} \[1\] This is a thought about subject\n\nMentions:\n  - subject \[NEW\]\n$",
             date_prefix_re
         );
         let wet = TestWet::new()?;
@@ -205,7 +205,7 @@ mod integration_cli_add {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
         let expected_output = format!(
-            r"{0} \[1\] subject and subject\n\nMentions:\n  - subject",
+            r"{0} \[1\] subject and subject\n\nMentions:\n  - subject \[NEW\]\n  - subject \[NEW\]\n$",
             date_prefix_re
         );
 
@@ -260,7 +260,7 @@ mod integration_cli_add {
     fn adds_thought_with_aliased_entity() -> Result<(), Box<dyn std::error::Error>> {
         let date_prefix_re = r"\d{4} [A-Z][a-z]{2} \d{2}";
         let expected_output = format!(
-            r"{0} \[1\] Thought about subject\n\nMentions:\n  - Subject With Complicated Name \| aliased as subject",
+            r"{0} \[1\] Thought about subject\n\nMentions:\n  - Subject With Complicated Name \| aliased as subject \[NEW\]\n$",
             date_prefix_re
         );
         let wet = TestWet::new()?;

@@ -87,7 +87,7 @@ impl AddConfirmationView {
 
         let fragments = &self.thought.thought.text.fragments;
 
-        if !fragments.is_empty() {
+        if fragments.len() > 1 {
             lines.push(Line::from(""));
             lines.push(Line::from("Mentions:"));
             for fragment in fragments {
@@ -98,6 +98,10 @@ impl AddConfirmationView {
                         items.push(Span::from(" | aliased as "));
                         items.push(Span::styled(under, entity_style))
                     };
+                    if self.thought.new_entities.contains(entity) {
+                        items.push(Span::from(" "));
+                        items.push(Span::styled("[NEW]", Style::from(Modifier::BOLD)))
+                    }
                     lines.push(Line::from(items))
                 }
             }
@@ -111,15 +115,22 @@ impl AddConfirmationView {
         println!("{}", thought_line);
 
         let fragments = &self.thought.thought.text.fragments;
-        if !fragments.is_empty() {
+        if fragments.len() > 1 {
             println!("\nMentions:");
             for fragment in fragments {
                 if let Fragment::EntityRef { entity, under, .. } = fragment {
-                    if entity == under {
-                        println!("  - {}", entity)
+                    let new_marker = if self.thought.new_entities.contains(entity) {
+                        " [NEW]"
                     } else {
-                        println!("  - {} | aliased as {}", entity, under)
-                    }
+                        ""
+                    };
+                    let alias_marker = if entity == under {
+                        String::new()
+                    } else {
+                        format!(" | aliased as {}", under)
+                    };
+
+                    println!("  - {}{}{}", entity, alias_marker, new_marker)
                 }
             }
         }
@@ -129,6 +140,7 @@ impl AddConfirmationView {
 
 #[cfg(test)]
 mod add_confirmation_tests {
+    use crate::model::entities;
     use crate::model::entities::Id;
     use crate::model::thoughts::{AddedThought, Thought};
     use crate::tui::app::AddConfirmation;
@@ -150,6 +162,7 @@ mod add_confirmation_tests {
                 NaiveDate::from_yo_opt(2024, 360).unwrap(),
             )
             .unwrap(),
+            new_entities: vec![],
         });
 
         assert_eq!(confirmation.needs_lines(), 1);
@@ -161,6 +174,7 @@ mod add_confirmation_tests {
                 NaiveDate::from_yo_opt(2024, 360).unwrap(),
             )
             .unwrap(),
+            new_entities: vec![],
         });
 
         assert_eq!(confirmation.needs_lines(), 4);
@@ -172,6 +186,7 @@ mod add_confirmation_tests {
                 NaiveDate::from_yo_opt(2024, 360).unwrap(),
             )
             .unwrap(),
+            new_entities: vec![],
         });
 
         assert_eq!(confirmation.needs_lines(), 5);
@@ -188,6 +203,7 @@ mod add_confirmation_tests {
                 NaiveDate::from_yo_opt(2024, 360).unwrap(),
             )
             .unwrap(),
+            new_entities: vec![],
         });
 
         let line = "2024 Dec 25 [42] No entities";
@@ -216,6 +232,7 @@ mod add_confirmation_tests {
                 NaiveDate::from_yo_opt(2024, 362).unwrap(),
             )
             .unwrap(),
+            new_entities: vec![],
         });
 
         let thought_line = "2024 Dec 27 [42] Thought about a and b and Big C";
@@ -249,6 +266,62 @@ mod add_confirmation_tests {
         expected.set_style(Rect::new(43, 0, 5, 1), c_style);
         expected.set_style(Rect::new(4, 5, 1, 1), c_style);
         expected.set_style(Rect::new(19, 5, 5, 1), c_style);
+
+        let mut buf = Buffer::empty(Rect::new(0, 0, thought_line.len() as u16, 6));
+
+        confirmation.render(buf.area, &mut buf);
+        assert_eq!(expected, buf);
+
+        Ok(())
+    }
+
+    #[test]
+    fn render_thought_with_new_entities() -> io::Result<()> {
+        let mut confirmation = AddConfirmation::for_thought(AddedThought {
+            id: 43,
+            thought: Thought::from_input(
+                String::from("[Old] with [New] with [Aliased](Another)"),
+                NaiveDate::from_yo_opt(2024, 363).unwrap(),
+            )
+            .unwrap(),
+            new_entities: vec![entities::Id::from("New"), entities::Id::from("Another")],
+        });
+
+        let thought_line = "2024 Dec 28 [43] Old with New with Aliased";
+
+        let mut colorizer = EntityColorizer::new();
+
+        let mut expected = Buffer::with_lines(vec![
+            thought_line,
+            "",
+            "Mentions:",
+            "  - Old",
+            "  - New [NEW]",
+            "  - Another | aliased as Aliased [NEW]",
+        ]);
+
+        let date_style = Style::from(ORANGE.c500);
+        expected.set_style(Rect::new(0, 0, 11, 1), date_style);
+
+        let id_style = Style::from(RED.c500).add_modifier(Modifier::BOLD);
+        expected.set_style(Rect::new(11, 0, 6, 1), id_style);
+
+        let old_style = Style::from(colorizer.assign_color(Id::from("Old")));
+        expected.set_style(Rect::new(17, 0, 3, 1), old_style);
+        expected.set_style(Rect::new(4, 3, 3, 1), old_style);
+
+        let new_style = Style::from(colorizer.assign_color(Id::from("New")));
+        expected.set_style(Rect::new(26, 0, 3, 1), new_style);
+        expected.set_style(Rect::new(4, 4, 3, 1), new_style);
+
+        let another_style = Style::from(colorizer.assign_color(Id::from("Another")));
+        expected.set_style(Rect::new(35, 0, 7, 1), another_style);
+        expected.set_style(Rect::new(4, 5, 7, 1), another_style);
+        expected.set_style(Rect::new(25, 5, 7, 1), another_style);
+
+        let new_marker_style = Style::from(Modifier::BOLD);
+        expected.set_style(Rect::new(8, 4, 5, 1), new_marker_style);
+        expected.set_style(Rect::new(33, 5, 5, 1), new_marker_style);
 
         let mut buf = Buffer::empty(Rect::new(0, 0, thought_line.len() as u16, 6));
 

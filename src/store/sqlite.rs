@@ -216,14 +216,17 @@ impl Store {
 
         let thought_id = self.conn.last_insert_rowid() as u32;
 
-        let added = AddedThought {
+        let mut added = AddedThought {
             id: thought_id,
             thought: thought.clone(),
+            new_entities: vec![],
         };
 
         for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
-                self.link_thought_to_entity(thought_id, entity)?;
+                if self.link_thought_to_entity(thought_id, entity.clone())? {
+                    added.new_entities.push(entity);
+                }
             }
         }
 
@@ -268,20 +271,26 @@ impl Store {
         Ok(())
     }
 
-    fn link_thought_to_entity(&self, thought_id: u32, entity: entities::Id) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO entities (name, description) VALUES (?1, ?2) ON CONFLICT(name) DO NOTHING",
-            // descriptions are empty by default
-            params![entity, ""],
-        )?;
-        let mut stmt = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
-        let mut rows = stmt.query_map(params![entity], |row| row.get::<usize, u32>(0))?;
-        let entity_id = rows.next().unwrap()?;
+    fn link_thought_to_entity(&self, thought_id: u32, entity: entities::Id) -> Result<bool> {
+        let mut select_entity = self.conn.prepare("SELECT id FROM entities WHERE name=?1")?;
+        let mut rows = select_entity.query(params![entity])?;
+        let mut added_entity = false;
+        let entity_id = if let Some(id) = rows.next()? {
+            id.get(0)
+        } else {
+            added_entity = true;
+            let insert_entity = self
+                .conn
+                .prepare("INSERT INTO entities (name, description) VALUES (?1, ?2)");
+            insert_entity?.insert(params![entity, ""])
+        }?;
+
         self.conn.execute(
             "INSERT INTO thoughts_entities (thought_id, entity_id) VALUES (?1, ?2) ON CONFLICT(thought_id, entity_id) DO NOTHING",
             params![thought_id, entity_id],
         )?;
-        Ok(())
+
+        Ok(added_entity)
     }
 }
 #[cfg(test)]
