@@ -16,3 +16,6 @@ anyhow = "1.0.79"
 
 [dev-dependencies]
 tempfile = "3.10.1"
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
+rusqlite = { version = "0.30.0", features = ["bundled"] }
