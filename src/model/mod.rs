@@ -1,5 +1,5 @@
 //! Domain model for the wetware application
-//! 
+//!
 //! This module contains the core domain entities and logic for the wetware application.
 
 use std::fmt;
@@ -11,7 +11,7 @@ use std::fmt;
 pub struct Thought {
     /// The unique identifier for the thought
     id: usize,
-    
+
     /// The content of the thought
     content: String,
 }

@@ -13,10 +13,10 @@ pub use self::sqlite::SqliteStorage;
 pub trait Storage {
     /// Initialize the storage, creating necessary structures if needed
     fn init(&self) -> Result<()>;
-    
+
     /// Save a thought to the storage
     fn save_thought(&self, content: &str) -> Result<Thought>;
-    
+
     /// Get all thoughts from the storage
     fn get_thoughts(&self) -> Result<Vec<Thought>>;
 }

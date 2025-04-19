@@ -4,7 +4,7 @@ use predicates::prelude::*;
 #[test]
 fn test_no_args_shows_usage() {
     let mut cmd = Command::cargo_bin("wet").unwrap();
-    
+
     cmd.assert()
         .failure()
         .stderr(predicate::str::contains("Usage:"))
@@ -16,11 +16,13 @@ fn test_no_args_shows_usage() {
 #[test]
 fn test_help_flag() {
     let mut cmd = Command::cargo_bin("wet").unwrap();
-    
+
     cmd.arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Wetware - track, organize, and process thoughts"))
+        .stdout(predicate::str::contains(
+            "Wetware - track, organize, and process thoughts",
+        ))
         .stdout(predicate::str::contains("Usage:"))
         .stdout(predicate::str::contains("-d, --database <DATABASE>"));
 }
@@ -28,9 +30,11 @@ fn test_help_flag() {
 #[test]
 fn test_invalid_command() {
     let mut cmd = Command::cargo_bin("wet").unwrap();
-    
+
     cmd.arg("invalid-command")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("unrecognized subcommand 'invalid-command'"));
+        .stderr(predicate::str::contains(
+            "unrecognized subcommand 'invalid-command'",
+        ));
 }
