@@ -71,3 +71,78 @@ impl Storage for SqliteStorage {
         Ok(thoughts)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    fn create_temp_db() -> (SqliteStorage, NamedTempFile) {
+        let temp_file = NamedTempFile::new().unwrap();
+        let storage = SqliteStorage::new(temp_file.path());
+        storage.init().unwrap();
+        (storage, temp_file)
+    }
+
+    #[test]
+    fn test_init_creates_tables() {
+        let (storage, _temp_file) = create_temp_db();
+        
+        // Verify the table was created
+        let conn = storage.get_connection().unwrap();
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='thoughts'").unwrap();
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0)).unwrap();
+        
+        let table_names: Vec<String> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(table_names, vec!["thoughts"]);
+    }
+
+    #[test]
+    fn test_save_thought() {
+        let (storage, _temp_file) = create_temp_db();
+        
+        let thought = storage.save_thought("Test thought").unwrap();
+        
+        assert_eq!(thought.id(), 1);
+        assert_eq!(thought.content(), "Test thought");
+        
+        // Verify it was saved in the database
+        let conn = storage.get_connection().unwrap();
+        let mut stmt = conn.prepare("SELECT id, content FROM thoughts WHERE id = ?").unwrap();
+        let rows = stmt.query_map([1], |row| {
+            Ok((row.get::<_, i64>(0).unwrap(), row.get::<_, String>(1).unwrap()))
+        }).unwrap();
+        
+        let results: Vec<(i64, String)> = rows.map(|r| r.unwrap()).collect();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], (1, "Test thought".to_string()));
+    }
+
+    #[test]
+    fn test_get_thoughts_empty() {
+        let (storage, _temp_file) = create_temp_db();
+        
+        let thoughts = storage.get_thoughts().unwrap();
+        
+        assert!(thoughts.is_empty());
+    }
+
+    #[test]
+    fn test_get_thoughts_multiple() {
+        let (storage, _temp_file) = create_temp_db();
+        
+        storage.save_thought("First thought").unwrap();
+        storage.save_thought("Second thought").unwrap();
+        storage.save_thought("Third thought").unwrap();
+        
+        let thoughts = storage.get_thoughts().unwrap();
+        
+        assert_eq!(thoughts.len(), 3);
+        assert_eq!(thoughts[0].id(), 1);
+        assert_eq!(thoughts[0].content(), "First thought");
+        assert_eq!(thoughts[1].id(), 2);
+        assert_eq!(thoughts[1].content(), "Second thought");
+        assert_eq!(thoughts[2].id(), 3);
+        assert_eq!(thoughts[2].content(), "Third thought");
+    }
+}
