@@ -1,0 +1,20 @@
+[package]
+name = "wetware"
+version = "0.1.0"
+edition = "2024"
+description = "Track, organize, and process thoughts"
+license = "Apache-2.0"
+
+[[bin]]
+name = "wet"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.1", features = ["derive"] }
+rusqlite = { version = "0.30.0", features = ["bundled"] }
+anyhow = "1.0.79"
+
+[dev-dependencies]
+tempfile = "3.10.1"
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
