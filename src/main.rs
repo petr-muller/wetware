@@ -10,6 +10,10 @@ use storage::Storage;
 #[command(name = "wet")]
 #[command(about = "Wetware - track, organize, and process thoughts")]
 struct Cli {
+    /// Path to the database file
+    #[arg(short, long, default_value = "wetware.db")]
+    database: String,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -28,9 +32,8 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     
-    // Create and initialize storage
-    let db_path = "wetware.db";
-    let storage = storage::SqliteStorage::new(db_path);
+    // Create and initialize storage with the provided database path
+    let storage = storage::SqliteStorage::new(&cli.database);
     storage.init().context("Failed to initialize storage")?;
 
     match cli.command {
