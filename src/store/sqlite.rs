@@ -1,6 +1,6 @@
 use crate::model::entities;
 use crate::model::fragments::Fragment;
-use crate::model::thoughts::{AddedThought, RawThought, Thought};
+use crate::model::thoughts::{AddedThought, EditedThought, RawThought, Thought};
 use chrono::NaiveDate;
 use indexmap::IndexMap;
 use rusqlite::{params, params_from_iter, Connection};
@@ -31,6 +31,14 @@ impl From<rusqlite::Error> for SqliteStoreError {
     fn from(rusqlite_err: rusqlite::Error) -> Self {
         SqliteStoreError {
             message: rusqlite_err.to_string(),
+        }
+    }
+}
+
+impl From<crate::model::thoughts::Error> for SqliteStoreError {
+    fn from(thought_err: crate::model::thoughts::Error) -> Self {
+        SqliteStoreError {
+            message: thought_err.to_string(),
         }
     }
 }
@@ -233,7 +241,10 @@ impl Store {
         Ok(added)
     }
 
-    pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<()> {
+    pub fn edit_thought(&self, thought_id: u32, thought: Thought) -> Result<EditedThought> {
+        // Get the old thought before updating
+        let old_thought = self.get_thought(thought_id)?.as_thought()?;
+        
         self.conn.execute(
             "UPDATE thoughts SET thought = ?1, datetime = ?2 WHERE id = ?3",
             params!(thought.text.raw, thought.added, thought_id),
@@ -244,13 +255,22 @@ impl Store {
             params![thought_id],
         )?;
 
+        let mut edited = EditedThought {
+            id: thought_id,
+            old_thought,
+            thought: thought.clone(),
+            new_entities: vec![],
+        };
+
         for fragment in thought.text.fragments {
             if let Fragment::EntityRef { entity, .. } = fragment {
-                self.link_thought_to_entity(thought_id, entity)?;
+                if self.link_thought_to_entity(thought_id, entity.clone())? {
+                    edited.new_entities.push(entity);
+                }
             }
         }
 
-        Ok(())
+        Ok(edited)
     }
 
     fn link_entity_from_description(&self, described: u32, linked: entities::Id) -> Result<()> {

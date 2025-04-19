@@ -6,7 +6,7 @@ mod tui;
 
 use crate::model::thoughts::Thought;
 use crate::store::sqlite::SqliteStoreError;
-use crate::tui::app::{AddConfirmation, EntityViewer, Thoughts};
+use crate::tui::app::{AddConfirmation, EditConfirmation, EntityViewer, Thoughts};
 use chrono::Local;
 use clap::{command, Args, Parser, Subcommand};
 use indexmap::IndexMap;
@@ -241,13 +241,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            match store.edit_thought(thought_id, thought) {
-                Ok(()) => (),
+            let edited = match store.edit_thought(thought_id, thought) {
+                Ok(edited) => edited,
                 Err(e) => {
                     eprintln!("Failed to edit thought: {}", e);
                     return Err(Box::new(e));
                 }
-            }
+            };
+
+            let mut tui = EditConfirmation::for_thought(edited);
+            // Hypothetically can work without TTY after crossterm-rs/crossterm#919 is fixed?
+            let result = if std::io::stdout().is_terminal() {
+                let output_size = u16::try_from(tui.needs_lines()).unwrap_or(u16::MAX);
+
+                // Does not work without TTY because of the following issue:
+                //
+                // cursor::position() fails when piping stdout:
+                // https://github.com/crossterm-rs/crossterm/issues/919
+                let mut terminal = ratatui::init_with_options(TerminalOptions {
+                    viewport: Viewport::Inline(output_size),
+                });
+
+                let result = tui.noninteractive(&mut terminal);
+                ratatui::restore();
+                result
+            } else {
+                tui.raw()
+            };
+
+            return match result {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    eprintln!("TUI failed: {}", e);
+                    Err(Box::new(e))
+                }
+            };
         }
         Commands::Add { thought, date } => {
             // TODO(muller): Create DB file when nonexistent but warn about it / maybe ask about it
