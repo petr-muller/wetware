@@ -245,3 +245,10 @@ pub struct AddedThought {
     pub thought: Thought,
     pub new_entities: Vec<entities::Id>,
 }
+
+pub struct EditedThought {
+    pub id: u32,
+    pub old_thought: Thought,
+    pub thought: Thought,
+    pub new_entities: Vec<entities::Id>,
+}

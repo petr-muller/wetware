@@ -2,7 +2,7 @@ use crate::model::entities::{Entity, Id as EntityId};
 #[cfg(test)]
 use crate::model::fragments;
 use crate::model::fragments::Fragment;
-use crate::model::thoughts::{AddedThought, Thought};
+use crate::model::thoughts::{AddedThought, EditedThought, Thought};
 use crate::tui::entity_colorizer::EntityColorizer;
 #[cfg(test)]
 use chrono::NaiveDate;
@@ -21,13 +21,13 @@ use std::io;
 use std::io::Write;
 
 pub struct AddConfirmation {
-    view: AddConfirmationView,
+    view: ThoughtConfirmationView<AddedThought>,
 }
 
 impl AddConfirmation {
     pub fn for_thought(thought: AddedThought) -> Self {
         Self {
-            view: AddConfirmationView {
+            view: ThoughtConfirmationView {
                 thought,
                 entity_colorizer: Default::default(),
             },
@@ -50,16 +50,24 @@ impl AddConfirmation {
 
     pub fn needs_lines(&self) -> u32 {
         let mut entity_refs = 0;
-        let fragments = &self.view.thought.thought.text.fragments;
+        let fragments = &self.view.thought.thought().text.fragments;
         for fragment in fragments {
             if let Fragment::EntityRef { .. } = fragment {
                 entity_refs += 1;
             }
         }
-        if entity_refs == 0 {
-            1
+
+        let base_lines = if self.view.thought.has_old_thought() {
+            // For EditedThought we need 2 lines (Before/After) instead of 1
+            2
         } else {
-            (3 + entity_refs) as u32
+            1
+        };
+
+        if entity_refs == 0 {
+            base_lines
+        } else {
+            base_lines + 2 + entity_refs
         }
     }
 }
@@ -70,22 +78,117 @@ impl Widget for &mut AddConfirmation {
     }
 }
 
-struct AddConfirmationView {
-    thought: AddedThought,
+pub struct EditConfirmation {
+    view: ThoughtConfirmationView<EditedThought>,
+}
+
+impl EditConfirmation {
+    pub fn for_thought(thought: EditedThought) -> Self {
+        Self {
+            view: ThoughtConfirmationView {
+                thought,
+                entity_colorizer: Default::default(),
+            },
+        }
+    }
+
+    pub fn noninteractive(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        terminal.draw(|frame| self.draw(frame))?;
+        Ok(())
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        frame.render_widget(self, frame.area());
+    }
+
+    pub fn raw(&mut self) -> io::Result<()> {
+        self.view.raw();
+        Ok(())
+    }
+
+    pub fn needs_lines(&self) -> u32 {
+        let mut entity_refs = 0;
+        let fragments = &self.view.thought.thought().text.fragments;
+        for fragment in fragments {
+            if let Fragment::EntityRef { .. } = fragment {
+                entity_refs += 1;
+            }
+        }
+
+        let base_lines = if self.view.thought.has_old_thought() {
+            // For EditedThought we need 2 lines (Before/After) instead of 1
+            2
+        } else {
+            1
+        };
+
+        if entity_refs == 0 {
+            base_lines
+        } else {
+            base_lines + 2 + entity_refs
+        }
+    }
+}
+
+impl Widget for &mut EditConfirmation {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.view.render(area, buf)
+    }
+}
+
+struct ThoughtConfirmationView<T> {
+    thought: T,
     entity_colorizer: EntityColorizer,
 }
 
-impl AddConfirmationView {
+impl<T> ThoughtConfirmationView<T>
+where
+    T: HasThought,
+{
     fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        let line = make_thought_line(
-            self.thought.id,
-            &self.thought.thought,
-            &mut self.entity_colorizer,
-        );
+        let mut lines = Vec::new();
 
-        let mut lines = vec![line];
+        if self.thought.has_old_thought() {
+            // Show "Before" and "After" format with both thoughts
+            if let Some(old) = self.thought.old_thought() {
+                let before_line = make_thought_line(
+                    self.thought.id(),
+                    old,
+                    &mut self.entity_colorizer,
+                );
 
-        let fragments = &self.thought.thought.text.fragments;
+                let after_line = make_thought_line(
+                    self.thought.id(),
+                    self.thought.thought(),
+                    &mut self.entity_colorizer,
+                );
+
+                lines.push(Line::from(vec![
+                    Span::from("Before: "),
+                    Span::styled(before_line.spans[0].content.clone(), before_line.spans[0].style),
+                    Span::styled(before_line.spans[1].content.clone(), before_line.spans[1].style),
+                    // Clone the rest of the spans that contain the actual thought text
+                    Span::from(before_line.spans.iter().skip(2).map(|s| s.content.as_ref()).collect::<String>())
+                ]));
+
+                lines.push(Line::from(vec![
+                    Span::from("After:  "),
+                    Span::styled(after_line.spans[0].content.clone(), after_line.spans[0].style),
+                    Span::styled(after_line.spans[1].content.clone(), after_line.spans[1].style),
+                    // Clone the rest of the spans that contain the actual thought text
+                    Span::from(after_line.spans.iter().skip(2).map(|s| s.content.as_ref()).collect::<String>())
+                ]));
+            }
+        } else {
+            // Regular display for added thoughts
+            lines.push(make_thought_line(
+                self.thought.id(),
+                self.thought.thought(),
+                &mut self.entity_colorizer,
+            ));
+        }
+
+        let fragments = &self.thought.thought().text.fragments;
 
         if fragments.len() > 1 {
             lines.push(Line::from(""));
@@ -98,7 +201,7 @@ impl AddConfirmationView {
                         items.push(Span::from(" | aliased as "));
                         items.push(Span::styled(under, entity_style))
                     };
-                    if self.thought.new_entities.contains(entity) {
+                    if self.thought.new_entities().contains(entity) {
                         items.push(Span::from(" "));
                         items.push(Span::styled("[NEW]", Style::from(Modifier::BOLD)))
                     }
@@ -111,15 +214,27 @@ impl AddConfirmationView {
     }
 
     fn raw(&mut self) {
-        let thought_line = make_raw_item(self.thought.id, &self.thought.thought);
-        println!("{}", thought_line);
+        if self.thought.has_old_thought() {
+            // Show "Before" and "After" format with both thoughts
+            if let Some(old) = self.thought.old_thought() {
+                let before_line = make_raw_item(self.thought.id(), old);
+                let after_line = make_raw_item(self.thought.id(), self.thought.thought());
 
-        let fragments = &self.thought.thought.text.fragments;
+                println!("Before: {}", before_line);
+                println!("After:  {}", after_line);
+            }
+        } else {
+            // Regular display for added thoughts
+            let thought_line = make_raw_item(self.thought.id(), self.thought.thought());
+            println!("{}", thought_line);
+        }
+
+        let fragments = &self.thought.thought().text.fragments;
         if fragments.len() > 1 {
             println!("\nMentions:");
             for fragment in fragments {
                 if let Fragment::EntityRef { entity, under, .. } = fragment {
-                    let new_marker = if self.thought.new_entities.contains(entity) {
+                    let new_marker = if self.thought.new_entities().contains(entity) {
                         " [NEW]"
                     } else {
                         ""
@@ -135,6 +250,56 @@ impl AddConfirmationView {
             }
         }
         io::stdout().flush().unwrap();
+    }
+}
+
+trait HasThought {
+    fn id(&self) -> u32;
+    fn thought(&self) -> &Thought;
+    fn new_entities(&self) -> &Vec<crate::model::entities::Id>;
+
+    fn has_old_thought(&self) -> bool {
+        false
+    }
+
+    fn old_thought(&self) -> Option<&Thought> {
+        None
+    }
+}
+
+impl HasThought for AddedThought {
+    fn id(&self) -> u32 {
+        self.id
+    }
+
+    fn thought(&self) -> &Thought {
+        &self.thought
+    }
+
+    fn new_entities(&self) -> &Vec<crate::model::entities::Id> {
+        &self.new_entities
+    }
+}
+
+impl HasThought for EditedThought {
+    fn id(&self) -> u32 {
+        self.id
+    }
+
+    fn thought(&self) -> &Thought {
+        &self.thought
+    }
+
+    fn new_entities(&self) -> &Vec<crate::model::entities::Id> {
+        &self.new_entities
+    }
+
+    fn has_old_thought(&self) -> bool {
+        true
+    }
+
+    fn old_thought(&self) -> Option<&Thought> {
+        Some(&self.old_thought)
     }
 }
 
