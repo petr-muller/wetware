@@ -54,7 +54,7 @@ fn main() -> Result<()> {
             }
             
             for thought in thoughts {
-                println!("{}: {}", thought.id(), thought);
+                println!("{}: {}", thought.id(), thought.content());
             }
         }
     }

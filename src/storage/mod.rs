@@ -19,7 +19,4 @@ pub trait Storage {
     
     /// Get all thoughts from the storage
     fn get_thoughts(&self) -> Result<Vec<Thought>>;
-    
-    /// Get a thought by its ID
-    fn get_thought(&self, id: usize) -> Result<Option<Thought>>;
 }

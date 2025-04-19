@@ -70,18 +70,4 @@ impl Storage for SqliteStorage {
         
         Ok(thoughts)
     }
-    
-    fn get_thought(&self, id: usize) -> Result<Option<Thought>> {
-        let conn = self.get_connection()?;
-        
-        let mut stmt = conn.prepare("SELECT content FROM thoughts WHERE id = ?")?;
-        let mut rows = stmt.query(params![id as i64])?;
-        
-        if let Some(row) = rows.next()? {
-            let content = row.get::<_, String>(0)?;
-            Ok(Some(Thought::new(id, content)))
-        } else {
-            Ok(None)
-        }
-    }
 }
