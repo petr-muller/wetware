@@ -15,7 +15,7 @@ name = "wet"
 path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4.40"
+chrono = "0.4.41"
 clap = { version = "4.5.37", features = ["derive", "env"] }
 rusqlite = { version = "0.32.1", features = ["bundled", "chrono"] }
 ratatui = "0.29.0"
