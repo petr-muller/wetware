@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = "0.4.41"
-clap = { version = "4.5.41", features = ["derive", "env"] }
+clap = { version = "4.5.45", features = ["derive", "env"] }
 rusqlite = { version = "0.32.1", features = ["bundled", "chrono"] }
 ratatui = "0.29.0"
 crossterm = "0.29.0"
