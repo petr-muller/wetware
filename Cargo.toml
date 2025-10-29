@@ -21,7 +21,7 @@ rusqlite = { version = "0.32.1", features = ["bundled", "chrono"] }
 ratatui = "0.29.0"
 crossterm = "0.29.0"
 interim = { version = "0.1.2", features = ["chrono"] }
-indexmap = "2.11.4"
+indexmap = "2.12.0"
 rusqlite_migration = "1.3.1"
 
 [dev-dependencies]
