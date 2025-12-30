@@ -1,3 +1,3 @@
-pub mod note_error;
+pub mod thought_error;
 
-pub use note_error::NoteError;
+pub use thought_error::ThoughtError;

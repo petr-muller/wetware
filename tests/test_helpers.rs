@@ -27,7 +27,7 @@ pub fn run_wet_command(args: &[&str], db_dir: Option<&TempDir>) -> CommandResult
     }
 
     // Run the built binary directly
-    let mut cmd = Command::new("target/debug/wetware");
+    let mut cmd = Command::new("target/debug/wet");
 
     // Add database path if temp dir provided
     if let Some(dir) = db_dir {

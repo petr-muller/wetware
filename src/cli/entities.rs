@@ -1,12 +1,12 @@
 /// Entities command implementation
-use crate::errors::NoteError;
+use crate::errors::ThoughtError;
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
 use std::path::Path;
 
 /// Execute the entities command
-pub fn execute(db_path: Option<&Path>) -> Result<(), NoteError> {
+pub fn execute(db_path: Option<&Path>) -> Result<(), ThoughtError> {
     // Get database connection
     let conn = get_connection(db_path)?;
 

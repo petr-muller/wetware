@@ -1,12 +1,12 @@
-/// Error types for note operations
+/// Error types for thought operations
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum NoteError {
-    #[error("Note content cannot be empty")]
+pub enum ThoughtError {
+    #[error("Thought content cannot be empty")]
     EmptyContent,
 
-    #[error("Note exceeds maximum length of {max} characters (got {actual})")]
+    #[error("Thought exceeds maximum length of {max} characters (got {actual})")]
     ContentTooLong { max: usize, actual: usize },
 
     #[error("Failed to parse entity references: {0}")]
@@ -25,25 +25,25 @@ mod tests {
 
     #[test]
     fn test_empty_content_error_message() {
-        let err = NoteError::EmptyContent;
-        assert_eq!(err.to_string(), "Note content cannot be empty");
+        let err = ThoughtError::EmptyContent;
+        assert_eq!(err.to_string(), "Thought content cannot be empty");
     }
 
     #[test]
     fn test_content_too_long_error_message() {
-        let err = NoteError::ContentTooLong {
+        let err = ThoughtError::ContentTooLong {
             max: 10000,
             actual: 10500,
         };
         assert_eq!(
             err.to_string(),
-            "Note exceeds maximum length of 10000 characters (got 10500)"
+            "Thought exceeds maximum length of 10000 characters (got 10500)"
         );
     }
 
     #[test]
     fn test_parse_error_message() {
-        let err = NoteError::ParseError("malformed bracket".to_string());
+        let err = ThoughtError::ParseError("malformed bracket".to_string());
         assert_eq!(
             err.to_string(),
             "Failed to parse entity references: malformed bracket"

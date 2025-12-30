@@ -1,7 +1,7 @@
 /// CLI module for command-line interface
 pub mod add;
 pub mod entities;
-pub mod notes;
+pub mod thoughts;
 
 use clap::{Parser, Subcommand};
 
@@ -15,14 +15,14 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Add a new note
+    /// Add a new thought
     Add {
-        /// Note content
+        /// Thought content
         content: String,
     },
-    /// List all notes
-    Notes {
-        /// Filter notes by entity name
+    /// List all thoughts
+    Thoughts {
+        /// Filter thoughts by entity name
         #[arg(long)]
         on: Option<String>,
     },

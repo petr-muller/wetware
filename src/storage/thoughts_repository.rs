@@ -1,30 +1,30 @@
-/// Repository for notes persistence
-use crate::errors::NoteError;
-use crate::models::note::Note;
+/// Repository for thoughts persistence
+use crate::errors::ThoughtError;
+use crate::models::thought::Thought;
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 
-/// Notes repository for database operations
-pub struct NotesRepository;
+/// Thoughts repository for database operations
+pub struct ThoughtsRepository;
 
-impl NotesRepository {
-    /// Save a note to the database
+impl ThoughtsRepository {
+    /// Save a thought to the database
     ///
-    /// Returns the ID of the saved note
-    pub fn save(conn: &Connection, note: &Note) -> Result<i64, NoteError> {
+    /// Returns the ID of the saved thought
+    pub fn save(conn: &Connection, thought: &Thought) -> Result<i64, ThoughtError> {
         conn.execute(
-            "INSERT INTO notes (content, created_at) VALUES (?1, ?2)",
-            (&note.content, note.created_at.to_rfc3339()),
+            "INSERT INTO thoughts (content, created_at) VALUES (?1, ?2)",
+            (&thought.content, thought.created_at.to_rfc3339()),
         )?;
 
         Ok(conn.last_insert_rowid())
     }
 
-    /// Get a note by ID
-    pub fn get_by_id(conn: &Connection, id: i64) -> Result<Note, NoteError> {
-        let mut stmt = conn.prepare("SELECT id, content, created_at FROM notes WHERE id = ?1")?;
+    /// Get a thought by ID
+    pub fn get_by_id(conn: &Connection, id: i64) -> Result<Thought, ThoughtError> {
+        let mut stmt = conn.prepare("SELECT id, content, created_at FROM thoughts WHERE id = ?1")?;
 
-        let note = stmt.query_row([id], |row| {
+        let thought = stmt.query_row([id], |row| {
             let created_at_str: String = row.get(2)?;
             let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                 .map_err(|e| {
@@ -36,22 +36,22 @@ impl NotesRepository {
                 })?
                 .with_timezone(&Utc);
 
-            Ok(Note {
+            Ok(Thought {
                 id: Some(row.get(0)?),
                 content: row.get(1)?,
                 created_at,
             })
         })?;
 
-        Ok(note)
+        Ok(thought)
     }
 
-    /// List all notes in chronological order (oldest first)
-    pub fn list_all(conn: &Connection) -> Result<Vec<Note>, NoteError> {
+    /// List all thoughts in chronological order (oldest first)
+    pub fn list_all(conn: &Connection) -> Result<Vec<Thought>, ThoughtError> {
         let mut stmt =
-            conn.prepare("SELECT id, content, created_at FROM notes ORDER BY created_at ASC")?;
+            conn.prepare("SELECT id, content, created_at FROM thoughts ORDER BY created_at ASC")?;
 
-        let notes = stmt
+        let thoughts = stmt
             .query_map([], |row| {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
@@ -64,7 +64,7 @@ impl NotesRepository {
                     })?
                     .with_timezone(&Utc);
 
-                Ok(Note {
+                Ok(Thought {
                     id: Some(row.get(0)?),
                     content: row.get(1)?,
                     created_at,
@@ -72,23 +72,23 @@ impl NotesRepository {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(notes)
+        Ok(thoughts)
     }
 
-    /// List notes filtered by entity name (case-insensitive)
-    pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Note>, NoteError> {
+    /// List thoughts filtered by entity name (case-insensitive)
+    pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Thought>, ThoughtError> {
         let lowercase_name = entity_name.to_lowercase();
 
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT n.id, n.content, n.created_at
-             FROM notes n
-             INNER JOIN note_entities ne ON n.id = ne.note_id
-             INNER JOIN entities e ON ne.entity_id = e.id
+            "SELECT DISTINCT t.id, t.content, t.created_at
+             FROM thoughts t
+             INNER JOIN thought_entities te ON t.id = te.thought_id
+             INNER JOIN entities e ON te.entity_id = e.id
              WHERE e.name = ?1
-             ORDER BY n.created_at ASC",
+             ORDER BY t.created_at ASC",
         )?;
 
-        let notes = stmt
+        let thoughts = stmt
             .query_map([lowercase_name], |row| {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
@@ -101,7 +101,7 @@ impl NotesRepository {
                     })?
                     .with_timezone(&Utc);
 
-                Ok(Note {
+                Ok(Thought {
                     id: Some(row.get(0)?),
                     content: row.get(1)?,
                     created_at,
@@ -109,7 +109,7 @@ impl NotesRepository {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(notes)
+        Ok(thoughts)
     }
 }
 
@@ -120,52 +120,52 @@ mod tests {
     use crate::storage::migrations::run_migrations;
 
     #[test]
-    fn test_save_note() {
+    fn test_save_thought() {
         let conn = get_memory_connection().unwrap();
         run_migrations(&conn).unwrap();
 
-        let note = Note::new("Test note".to_string()).unwrap();
-        let id = NotesRepository::save(&conn, &note).unwrap();
+        let thought = Thought::new("Test thought".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
 
         assert!(id > 0);
     }
 
     #[test]
-    fn test_get_note_by_id() {
+    fn test_get_thought_by_id() {
         let conn = get_memory_connection().unwrap();
         run_migrations(&conn).unwrap();
 
-        let note = Note::new("Test note".to_string()).unwrap();
-        let id = NotesRepository::save(&conn, &note).unwrap();
+        let thought = Thought::new("Test thought".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
 
-        let retrieved = NotesRepository::get_by_id(&conn, id).unwrap();
-        assert_eq!(retrieved.content, "Test note");
+        let retrieved = ThoughtsRepository::get_by_id(&conn, id).unwrap();
+        assert_eq!(retrieved.content, "Test thought");
         assert_eq!(retrieved.id, Some(id));
     }
 
     #[test]
-    fn test_list_all_notes_empty() {
+    fn test_list_all_thoughts_empty() {
         let conn = get_memory_connection().unwrap();
         run_migrations(&conn).unwrap();
 
-        let notes = NotesRepository::list_all(&conn).unwrap();
-        assert!(notes.is_empty());
+        let thoughts = ThoughtsRepository::list_all(&conn).unwrap();
+        assert!(thoughts.is_empty());
     }
 
     #[test]
-    fn test_list_all_notes() {
+    fn test_list_all_thoughts() {
         let conn = get_memory_connection().unwrap();
         run_migrations(&conn).unwrap();
 
-        let note1 = Note::new("First".to_string()).unwrap();
-        let note2 = Note::new("Second".to_string()).unwrap();
+        let thought1 = Thought::new("First".to_string()).unwrap();
+        let thought2 = Thought::new("Second".to_string()).unwrap();
 
-        NotesRepository::save(&conn, &note1).unwrap();
-        NotesRepository::save(&conn, &note2).unwrap();
+        ThoughtsRepository::save(&conn, &thought1).unwrap();
+        ThoughtsRepository::save(&conn, &thought2).unwrap();
 
-        let notes = NotesRepository::list_all(&conn).unwrap();
-        assert_eq!(notes.len(), 2);
-        assert_eq!(notes[0].content, "First");
-        assert_eq!(notes[1].content, "Second");
+        let thoughts = ThoughtsRepository::list_all(&conn).unwrap();
+        assert_eq!(thoughts.len(), 2);
+        assert_eq!(thoughts[0].content, "First");
+        assert_eq!(thoughts[1].content, "Second");
     }
 }

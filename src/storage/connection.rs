@@ -1,5 +1,5 @@
 /// Database connection management
-use crate::errors::NoteError;
+use crate::errors::ThoughtError;
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
@@ -11,7 +11,7 @@ pub fn default_db_path() -> PathBuf {
 /// Get a database connection
 ///
 /// Creates the database file if it doesn't exist.
-pub fn get_connection(db_path: Option<&Path>) -> Result<Connection, NoteError> {
+pub fn get_connection(db_path: Option<&Path>) -> Result<Connection, ThoughtError> {
     let default_path = default_db_path();
     let path = db_path.unwrap_or(&default_path);
     let conn = Connection::open(path)?;
@@ -23,7 +23,7 @@ pub fn get_connection(db_path: Option<&Path>) -> Result<Connection, NoteError> {
 }
 
 /// Get an in-memory database connection (for testing)
-pub fn get_memory_connection() -> Result<Connection, NoteError> {
+pub fn get_memory_connection() -> Result<Connection, ThoughtError> {
     let conn = Connection::open_in_memory()?;
     conn.execute("PRAGMA foreign_keys = ON", [])?;
     Ok(conn)

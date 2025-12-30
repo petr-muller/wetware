@@ -6,5 +6,5 @@ pub mod models;
 pub mod services;
 pub mod storage;
 
-pub use errors::NoteError;
-pub use models::{Entity, Note};
+pub use errors::ThoughtError;
+pub use models::{Entity, Thought};

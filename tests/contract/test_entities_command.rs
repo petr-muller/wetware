@@ -5,7 +5,7 @@ use crate::test_helpers::{run_wet_command, setup_temp_db};
 fn test_entities_command_success() {
     let temp_db = setup_temp_db();
 
-    // Add notes with various entities
+    // Add thoughts with various entities
     run_wet_command(&["add", "Meeting with [Sarah]"], Some(&temp_db));
     run_wet_command(&["add", "Call [John]"], Some(&temp_db));
     run_wet_command(&["add", "Email [Alice] and [Bob]"], Some(&temp_db));
@@ -41,9 +41,9 @@ fn test_entities_command_alphabetical_order() {
     let temp_db = setup_temp_db();
 
     // Add entities in non-alphabetical order
-    run_wet_command(&["add", "Note with [Zebra]"], Some(&temp_db));
-    run_wet_command(&["add", "Note with [Apple]"], Some(&temp_db));
-    run_wet_command(&["add", "Note with [Middle]"], Some(&temp_db));
+    run_wet_command(&["add", "Thought with [Zebra]"], Some(&temp_db));
+    run_wet_command(&["add", "Thought with [Apple]"], Some(&temp_db));
+    run_wet_command(&["add", "Thought with [Middle]"], Some(&temp_db));
 
     let result = run_wet_command(&["entities"], Some(&temp_db));
 
@@ -64,9 +64,9 @@ fn test_entities_command_canonical_capitalization() {
     let temp_db = setup_temp_db();
 
     // Add same entity with different capitalizations
-    run_wet_command(&["add", "First note with [Sarah]"], Some(&temp_db));
-    run_wet_command(&["add", "Second note with [SARAH]"], Some(&temp_db));
-    run_wet_command(&["add", "Third note with [sarah]"], Some(&temp_db));
+    run_wet_command(&["add", "First thought with [Sarah]"], Some(&temp_db));
+    run_wet_command(&["add", "Second thought with [SARAH]"], Some(&temp_db));
+    run_wet_command(&["add", "Third thought with [sarah]"], Some(&temp_db));
 
     let result = run_wet_command(&["entities"], Some(&temp_db));
 
@@ -88,7 +88,7 @@ fn test_entities_command_canonical_capitalization() {
 fn test_entities_command_unique_entities() {
     let temp_db = setup_temp_db();
 
-    // Add multiple notes referencing the same entities
+    // Add multiple thoughts referencing the same entities
     run_wet_command(&["add", "Meeting with [Sarah]"], Some(&temp_db));
     run_wet_command(&["add", "Call [Sarah]"], Some(&temp_db));
     run_wet_command(&["add", "Email [Sarah]"], Some(&temp_db));

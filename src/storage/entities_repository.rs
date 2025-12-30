@@ -1,5 +1,5 @@
 /// Repository for entities persistence
-use crate::errors::NoteError;
+use crate::errors::ThoughtError;
 use crate::models::entity::Entity;
 use rusqlite::{Connection, OptionalExtension};
 
@@ -10,7 +10,7 @@ impl EntitiesRepository {
     /// Find an entity by name (case-insensitive) or create it if it doesn't exist
     ///
     /// Returns the ID of the found or created entity
-    pub fn find_or_create(conn: &Connection, entity: &Entity) -> Result<i64, NoteError> {
+    pub fn find_or_create(conn: &Connection, entity: &Entity) -> Result<i64, ThoughtError> {
         // Try to find existing entity (case-insensitive via COLLATE NOCASE)
         let mut stmt = conn.prepare("SELECT id FROM entities WHERE name = ?1")?;
         let existing: Option<i64> = stmt
@@ -30,17 +30,17 @@ impl EntitiesRepository {
         Ok(conn.last_insert_rowid())
     }
 
-    /// Link an entity to a note
-    pub fn link_to_note(conn: &Connection, entity_id: i64, note_id: i64) -> Result<(), NoteError> {
+    /// Link an entity to a thought
+    pub fn link_to_thought(conn: &Connection, entity_id: i64, thought_id: i64) -> Result<(), ThoughtError> {
         conn.execute(
-            "INSERT OR IGNORE INTO note_entities (note_id, entity_id) VALUES (?1, ?2)",
-            (note_id, entity_id),
+            "INSERT OR IGNORE INTO thought_entities (thought_id, entity_id) VALUES (?1, ?2)",
+            (thought_id, entity_id),
         )?;
         Ok(())
     }
 
     /// Find an entity by name (case-insensitive)
-    pub fn find_by_name(conn: &Connection, name: &str) -> Result<Option<Entity>, NoteError> {
+    pub fn find_by_name(conn: &Connection, name: &str) -> Result<Option<Entity>, ThoughtError> {
         let lowercase_name = name.to_lowercase();
         let mut stmt =
             conn.prepare("SELECT id, name, canonical_name FROM entities WHERE name = ?1")?;
@@ -59,7 +59,7 @@ impl EntitiesRepository {
     }
 
     /// List all entities in alphabetical order
-    pub fn list_all(conn: &Connection) -> Result<Vec<Entity>, NoteError> {
+    pub fn list_all(conn: &Connection) -> Result<Vec<Entity>, ThoughtError> {
         let mut stmt = conn
             .prepare("SELECT id, name, canonical_name FROM entities ORDER BY canonical_name ASC")?;
 
@@ -109,22 +109,22 @@ mod tests {
     }
 
     #[test]
-    fn test_link_to_note() {
+    fn test_link_to_thought() {
         let conn = get_memory_connection().unwrap();
         run_migrations(&conn).unwrap();
 
         let entity = Entity::new("TestEntity".to_string());
         let entity_id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
 
-        // Create a note manually for testing
+        // Create a thought manually for testing
         conn.execute(
-            "INSERT INTO notes (content, created_at) VALUES ('Test', datetime('now'))",
+            "INSERT INTO thoughts (content, created_at) VALUES ('Test', datetime('now'))",
             [],
         )
         .unwrap();
-        let note_id = conn.last_insert_rowid();
+        let thought_id = conn.last_insert_rowid();
 
-        let result = EntitiesRepository::link_to_note(&conn, entity_id, note_id);
+        let result = EntitiesRepository::link_to_thought(&conn, entity_id, thought_id);
         assert!(result.is_ok());
     }
 

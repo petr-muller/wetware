@@ -1,11 +1,11 @@
 /// Database migrations module
 pub mod networked_notes_migration;
 
-use crate::errors::NoteError;
+use crate::errors::ThoughtError;
 use rusqlite::Connection;
 
 /// Run all database migrations
-pub fn run_migrations(conn: &Connection) -> Result<(), NoteError> {
+pub fn run_migrations(conn: &Connection) -> Result<(), ThoughtError> {
     // Run migration 001: networked notes
     networked_notes_migration::migrate(conn)?;
 
@@ -31,9 +31,9 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        assert!(tables.contains(&"notes".to_string()));
+        assert!(tables.contains(&"thoughts".to_string()));
         assert!(tables.contains(&"entities".to_string()));
-        assert!(tables.contains(&"note_entities".to_string()));
+        assert!(tables.contains(&"thought_entities".to_string()));
     }
 
     #[test]

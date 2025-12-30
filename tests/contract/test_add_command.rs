@@ -4,12 +4,12 @@ use crate::test_helpers::{run_wet_command, setup_temp_db};
 #[test]
 fn test_add_command_success() {
     let temp_db = setup_temp_db();
-    let result = run_wet_command(&["add", "This is a test note"], Some(&temp_db));
+    let result = run_wet_command(&["add", "This is a test thought"], Some(&temp_db));
 
     assert_eq!(result.status, 0, "Command should succeed");
     assert!(
-        result.stdout.contains("Note added"),
-        "Should confirm note was added. Got: {}",
+        result.stdout.contains("Thought added"),
+        "Should confirm thought was added. Got: {}",
         result.stdout
     );
     assert!(

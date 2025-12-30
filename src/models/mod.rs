@@ -1,5 +1,5 @@
 pub mod entity;
-pub mod note;
+pub mod thought;
 
 pub use entity::Entity;
-pub use note::Note;
+pub use thought::Thought;

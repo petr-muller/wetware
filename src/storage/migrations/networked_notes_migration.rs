@@ -1,11 +1,11 @@
 /// Database migration for networked notes feature
-/// Creates tables: notes, entities, note_entities
+/// Creates tables: thoughts, entities, thought_entities
 use rusqlite::{Connection, Result};
 
 pub fn migrate(conn: &Connection) -> Result<()> {
-    // Create notes table
+    // Create thoughts table
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS notes (
+        "CREATE TABLE IF NOT EXISTS thoughts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             content TEXT NOT NULL CHECK(length(trim(content)) > 0 AND length(content) <= 10000),
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -15,7 +15,7 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
     // Create index on created_at for chronological ordering
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_thoughts_created_at ON thoughts(created_at)",
         [],
     )?;
 
@@ -31,11 +31,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
     // Create junction table for many-to-many relationship
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS note_entities (
-            note_id INTEGER NOT NULL,
+        "CREATE TABLE IF NOT EXISTS thought_entities (
+            thought_id INTEGER NOT NULL,
             entity_id INTEGER NOT NULL,
-            PRIMARY KEY (note_id, entity_id),
-            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+            PRIMARY KEY (thought_id, entity_id),
+            FOREIGN KEY (thought_id) REFERENCES thoughts(id) ON DELETE CASCADE,
             FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
         )",
         [],
@@ -43,12 +43,12 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
     // Create indexes for entity lookups
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_note_entities_entity ON note_entities(entity_id)",
+        "CREATE INDEX IF NOT EXISTS idx_thought_entities_entity ON thought_entities(entity_id)",
         [],
     )?;
 
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_note_entities_note ON note_entities(note_id)",
+        "CREATE INDEX IF NOT EXISTS idx_thought_entities_thought ON thought_entities(thought_id)",
         [],
     )?;
 
@@ -74,9 +74,9 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        assert!(tables.contains(&"notes".to_string()));
+        assert!(tables.contains(&"thoughts".to_string()));
         assert!(tables.contains(&"entities".to_string()));
-        assert!(tables.contains(&"note_entities".to_string()));
+        assert!(tables.contains(&"thought_entities".to_string()));
     }
 
     #[test]
@@ -93,9 +93,9 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        assert!(indexes.contains(&"idx_notes_created_at".to_string()));
-        assert!(indexes.contains(&"idx_note_entities_entity".to_string()));
-        assert!(indexes.contains(&"idx_note_entities_note".to_string()));
+        assert!(indexes.contains(&"idx_thoughts_created_at".to_string()));
+        assert!(indexes.contains(&"idx_thought_entities_entity".to_string()));
+        assert!(indexes.contains(&"idx_thought_entities_thought".to_string()));
     }
 
     #[test]
