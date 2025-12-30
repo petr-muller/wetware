@@ -18,7 +18,7 @@ Sync Impact Report:
      - Added Result/Option type validation tasks
      - Added logging tasks per Observability principle
   ⚠ No command files exist yet in .specify/templates/commands/
-  ⚠ No README.md exists - should be created referencing these principles
+  ✅ README.md created - references core principles and features
 - Follow-up TODOs: None
 -->
 
@@ -82,6 +82,11 @@ makes failure cases visible and forces developers to handle them appropriately.
 - Complex algorithms MUST have implementation comments
 - Modules MUST have purpose documentation
 - Architecture decisions MUST be documented (ADRs or inline rationale)
+- README.md MUST be kept up-to-date with:
+  - Current feature list
+  - Installation and usage instructions
+  - Database configuration
+  - Example commands for all CLI operations
 
 **Observability:**
 - Log significant operations (persistence, CLI commands)
