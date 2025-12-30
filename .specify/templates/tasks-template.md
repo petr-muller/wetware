@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Per Wetware Constitution, 90%+ test coverage is REQUIRED. All user stories must include unit, integration, and contract tests as appropriate. Tests must be written FIRST and fail before implementation (TDD).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -20,10 +20,13 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root
-- **Web app**: `backend/src/`, `frontend/src/`
-- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
-- Paths shown below assume single project - adjust based on plan.md structure
+- **Wetware (Rust)**: `src/`, `tests/` at repository root
+  - Unit tests: inline in `src/**/*.rs` or `tests/unit/`
+  - Integration tests: `tests/integration/`
+  - Contract tests: `tests/contract/`
+- **Other project types**: Adjust based on plan.md structure
+  - Web app: `backend/src/`, `frontend/src/`
+  - Mobile: `api/src/`, `ios/src/` or `android/src/`
 
 <!-- 
   ============================================================================
@@ -79,21 +82,23 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 (REQUIRED for 90%+ coverage) 🧪
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **CRITICAL: Write these tests FIRST, ensure they FAIL before implementation (TDD)**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].rs
+- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].rs
+- [ ] T012 [P] [US1] Unit tests for [Entity1] in src/models/[entity1].rs (inline or tests/unit/)
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T013 [P] [US1] Create [Entity1] model in src/models/[entity1].rs
+- [ ] T014 [P] [US1] Create [Entity2] model in src/models/[entity2].rs
+- [ ] T015 [US1] Implement [Service] in src/services/[service].rs (depends on T013, T014)
+- [ ] T016 [US1] Implement [endpoint/feature] in src/[location]/[file].rs
+- [ ] T017 [US1] Add validation and error handling (Result/Option types)
+- [ ] T018 [US1] Add logging for user story 1 operations
+- [ ] T019 [US1] Verify 90%+ test coverage for this story (`cargo tarpaulin` or similar)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -105,17 +110,23 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 (REQUIRED for 90%+ coverage) 🧪
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+> **CRITICAL: Write these tests FIRST, ensure they FAIL before implementation (TDD)**
+
+- [ ] T020 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].rs
+- [ ] T021 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].rs
+- [ ] T022 [P] [US2] Unit tests for [Entity] in src/models/[entity].rs (inline or tests/unit/)
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T023 [P] [US2] Create [Entity] model in src/models/[entity].rs
+- [ ] T024 [US2] Implement [Service] in src/services/[service].rs
+- [ ] T025 [US2] Implement [endpoint/feature] in src/[location]/[file].rs
+- [ ] T026 [US2] Add validation and error handling (Result/Option types)
+- [ ] T027 [US2] Add logging for user story 2 operations
+- [ ] T028 [US2] Verify 90%+ test coverage for this story
+- [ ] T029 [US2] Integrate with User Story 1 components (if needed)
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -127,16 +138,22 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 (REQUIRED for 90%+ coverage) 🧪
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+> **CRITICAL: Write these tests FIRST, ensure they FAIL before implementation (TDD)**
+
+- [ ] T030 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].rs
+- [ ] T031 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].rs
+- [ ] T032 [P] [US3] Unit tests for [Entity] in src/models/[entity].rs (inline or tests/unit/)
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T033 [P] [US3] Create [Entity] model in src/models/[entity].rs
+- [ ] T034 [US3] Implement [Service] in src/services/[service].rs
+- [ ] T035 [US3] Implement [endpoint/feature] in src/[location]/[file].rs
+- [ ] T036 [US3] Add validation and error handling (Result/Option types)
+- [ ] T037 [US3] Add logging for user story 3 operations
+- [ ] T038 [US3] Verify 90%+ test coverage for this story
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -153,7 +170,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX Verify overall 90%+ test coverage across all stories (`cargo tarpaulin`)
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
 

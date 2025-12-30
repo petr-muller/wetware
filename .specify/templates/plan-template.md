@@ -31,7 +31,32 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Verify compliance with Wetware Constitution (`.specify/memory/constitution.md`):
+
+**I. Test-First Development (90%+ Coverage)**
+- [ ] Test strategy defined (unit, integration, contract)
+- [ ] 90%+ coverage target achievable for this feature
+- [ ] TDD approach planned for new functionality
+
+**II. Layer Separation**
+- [ ] Changes respect CLI / Domain / Persistence / Input layer boundaries
+- [ ] No direct dependencies from Domain to CLI or Persistence implementation
+- [ ] Persistence abstraction maintained (interface-based)
+
+**III. Strong Typing & Error Handling**
+- [ ] Error types identified for new functionality
+- [ ] Result/Option types used (no panics in business logic)
+- [ ] Error context propagation planned
+
+**IV. Observability & Documentation**
+- [ ] Public API documentation plan (rustdoc)
+- [ ] Logging strategy for significant operations
+- [ ] Architecture decision rationale documented
+
+**V. Simplicity & YAGNI**
+- [ ] Solution is simplest that meets current requirements
+- [ ] No premature optimization or abstraction
+- [ ] Complexity justified if present (see Complexity Tracking below)
 
 ## Project Structure
 
