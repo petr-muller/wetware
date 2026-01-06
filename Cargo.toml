@@ -18,7 +18,7 @@ path = "src/main.rs"
 chrono = "0.4.42"
 clap = { version = "4.5.54", features = ["derive", "env"] }
 rusqlite = { version = "0.32.1", features = ["bundled", "chrono"] }
-ratatui = "0.29.0"
+ratatui = "0.30.0"
 crossterm = "0.29.0"
 interim = { version = "0.1.2", features = ["chrono"] }
 indexmap = "2.12.1"
