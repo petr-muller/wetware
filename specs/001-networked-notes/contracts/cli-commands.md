@@ -12,11 +12,11 @@ This document defines the command-line interface contracts for the networked not
 
 ### Exit Codes
 
-| Code | Meaning | When Used |
-|------|---------|-----------|
-| 0 | Success | Operation completed successfully |
-| 1 | User Error | Invalid input, validation failure |
-| 2 | System Error | Database unavailable, disk full |
+| Code | Meaning      | When Used                         |
+|------|--------------|-----------------------------------|
+| 0    | Success      | Operation completed successfully  |
+| 1    | User Error   | Invalid input, validation failure |
+| 2    | System Error | Database unavailable, disk full   |
 
 ### Output Format
 
@@ -48,9 +48,9 @@ Add a new note with optional entity references. Text can contain zero or more en
 
 ### Arguments
 
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `<text>` | String | Yes | Note content (1-10,000 characters) |
+| Argument | Type   | Required | Description                        |
+|----------|--------|----------|------------------------------------|
+| `<text>` | String | Yes      | Note content (1-10,000 characters) |
 
 ### Entity Syntax
 
@@ -169,9 +169,9 @@ List all notes in chronological order (oldest first), or filter by entity refere
 
 ### Arguments
 
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `--on <entity>` | String | No | Filter notes containing this entity (case-insensitive) |
+| Argument        | Type   | Required | Description                                            |
+|-----------------|--------|----------|--------------------------------------------------------|
+| `--on <entity>` | String | No       | Filter notes containing this entity (case-insensitive) |
 
 ### Examples
 
@@ -421,12 +421,12 @@ Error: DB error
 
 ## Performance Contracts
 
-| Command | Max Latency | Notes |
-|---------|-------------|-------|
-| `wet add` | 100ms | P95 latency for typical note |
-| `wet notes` | 100ms | P95 latency for <1000 notes |
-| `wet notes --on` | 500ms | P95 latency for entity filtering |
-| `wet entities` | 100ms | P95 latency for <500 entities |
+| Command          | Max Latency | Notes                            |
+|------------------|-------------|----------------------------------|
+| `wet add`        | 100ms       | P95 latency for typical note     |
+| `wet notes`      | 100ms       | P95 latency for <1000 notes      |
+| `wet notes --on` | 500ms       | P95 latency for entity filtering |
+| `wet entities`   | 100ms       | P95 latency for <500 entities    |
 
 ---
 

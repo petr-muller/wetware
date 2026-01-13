@@ -44,9 +44,6 @@ mod tests {
     #[test]
     fn test_parse_error_message() {
         let err = ThoughtError::ParseError("malformed bracket".to_string());
-        assert_eq!(
-            err.to_string(),
-            "Failed to parse entity references: malformed bracket"
-        );
+        assert_eq!(err.to_string(), "Failed to parse entity references: malformed bracket");
     }
 }

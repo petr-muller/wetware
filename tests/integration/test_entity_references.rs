@@ -147,16 +147,8 @@ fn test_filter_notes_by_entity() -> Result<(), ThoughtError> {
     // Filter by Sarah
     let sarah_notes = ThoughtsRepository::list_by_entity(&conn, "sarah")?;
     assert_eq!(sarah_notes.len(), 2);
-    assert!(
-        sarah_notes
-            .iter()
-            .any(|n| n.content.contains("Meeting with [Sarah]"))
-    );
-    assert!(
-        sarah_notes
-            .iter()
-            .any(|n| n.content.contains("Email [Sarah]"))
-    );
+    assert!(sarah_notes.iter().any(|n| n.content.contains("Meeting with [Sarah]")));
+    assert!(sarah_notes.iter().any(|n| n.content.contains("Email [Sarah]")));
 
     // Filter by John
     let john_notes = ThoughtsRepository::list_by_entity(&conn, "john")?;
@@ -223,10 +215,7 @@ fn test_list_all_entities_unique() -> Result<(), ThoughtError> {
     // Should have exactly 2 unique entities
     assert_eq!(all_entities.len(), 2);
 
-    let names: Vec<String> = all_entities
-        .iter()
-        .map(|e| e.canonical_name.clone())
-        .collect();
+    let names: Vec<String> = all_entities.iter().map(|e| e.canonical_name.clone()).collect();
     assert!(names.contains(&"Sarah".to_string()));
     assert!(names.contains(&"John".to_string()));
 

@@ -16,10 +16,10 @@ This document defines the data model for the networked notes feature, including 
 
 **Fields**:
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | i64 | PRIMARY KEY, AUTO_INCREMENT | Unique note identifier |
-| `content` | String | NOT NULL, 1-10000 chars | Note text content |
+| Field        | Type     | Constraints                         | Description              |
+|--------------|----------|-------------------------------------|--------------------------|
+| `id`         | i64      | PRIMARY KEY, AUTO_INCREMENT         | Unique note identifier   |
+| `content`    | String   | NOT NULL, 1-10000 chars             | Note text content        |
 | `created_at` | DateTime | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Creation timestamp (UTC) |
 
 **Domain Model** (Rust):
@@ -86,11 +86,11 @@ impl Note {
 
 **Fields**:
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | i64 | PRIMARY KEY, AUTO_INCREMENT | Unique entity identifier |
-| `name` | String | UNIQUE COLLATE NOCASE, NOT NULL | Case-insensitive unique name |
-| `canonical_name` | String | NOT NULL | Display name (first occurrence capitalization) |
+| Field            | Type   | Constraints                     | Description                                    |
+|------------------|--------|---------------------------------|------------------------------------------------|
+| `id`             | i64    | PRIMARY KEY, AUTO_INCREMENT     | Unique entity identifier                       |
+| `name`           | String | UNIQUE COLLATE NOCASE, NOT NULL | Case-insensitive unique name                   |
+| `canonical_name` | String | NOT NULL                        | Display name (first occurrence capitalization) |
 
 **Domain Model** (Rust):
 ```rust
@@ -147,11 +147,11 @@ impl Entity {
 
 **Fields**:
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `note_id` | i64 | FOREIGN KEY → notes(id), ON DELETE CASCADE | Note identifier |
-| `entity_id` | i64 | FOREIGN KEY → entities(id), ON DELETE CASCADE | Entity identifier |
-| - | - | PRIMARY KEY (note_id, entity_id) | Composite primary key |
+| Field       | Type | Constraints                                   | Description           |
+|-------------|------|-----------------------------------------------|-----------------------|
+| `note_id`   | i64  | FOREIGN KEY → notes(id), ON DELETE CASCADE    | Note identifier       |
+| `entity_id` | i64  | FOREIGN KEY → entities(id), ON DELETE CASCADE | Entity identifier     |
+| -           | -    | PRIMARY KEY (note_id, entity_id)              | Composite primary key |
 
 **Domain Model** (Rust):
 ```rust
@@ -223,11 +223,11 @@ CREATE INDEX idx_note_entities_note ON note_entities(note_id);
 
 ### Indexes
 
-| Index | Table | Columns | Purpose |
-|-------|-------|---------|---------|
-| `idx_notes_created_at` | notes | created_at | Chronological ordering for `wet notes` |
-| `idx_note_entities_entity` | note_entities | entity_id | Fast entity-to-notes lookup for `wet notes --on` |
-| `idx_note_entities_note` | note_entities | note_id | Fast note-to-entities lookup (reverse) |
+| Index                      | Table         | Columns    | Purpose                                          |
+|----------------------------|---------------|------------|--------------------------------------------------|
+| `idx_notes_created_at`     | notes         | created_at | Chronological ordering for `wet notes`           |
+| `idx_note_entities_entity` | note_entities | entity_id  | Fast entity-to-notes lookup for `wet notes --on` |
+| `idx_note_entities_note`   | note_entities | note_id    | Fast note-to-entities lookup (reverse)           |
 
 **Performance Impact**:
 - Chronological listing: O(log n) with index seek
@@ -350,15 +350,15 @@ User Input: `wet notes --on Sarah`
 
 ## Validation Rules Summary
 
-| Entity | Rule | Error Type |
-|--------|------|------------|
-| Note | Content not empty (after trim) | `NoteError::EmptyContent` |
-| Note | Content ≤ 10,000 chars | `NoteError::ContentTooLong` |
-| Note | Valid UTF-8 | `NoteError::InvalidInput` |
-| Entity | Name not empty (after trim) | `NoteError::InvalidInput` |
-| Entity | Unique (case-insensitive) | Database constraint violation |
-| EntityReference | note_id exists | Foreign key constraint |
-| EntityReference | entity_id exists | Foreign key constraint |
+| Entity          | Rule                           | Error Type                    |
+|-----------------|--------------------------------|-------------------------------|
+| Note            | Content not empty (after trim) | `NoteError::EmptyContent`     |
+| Note            | Content ≤ 10,000 chars         | `NoteError::ContentTooLong`   |
+| Note            | Valid UTF-8                    | `NoteError::InvalidInput`     |
+| Entity          | Name not empty (after trim)    | `NoteError::InvalidInput`     |
+| Entity          | Unique (case-insensitive)      | Database constraint violation |
+| EntityReference | note_id exists                 | Foreign key constraint        |
+| EntityReference | entity_id exists               | Foreign key constraint        |
 
 ## Migration Strategy
 

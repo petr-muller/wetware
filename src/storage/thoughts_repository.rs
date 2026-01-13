@@ -27,13 +27,7 @@ impl ThoughtsRepository {
         let thought = stmt.query_row([id], |row| {
             let created_at_str: String = row.get(2)?;
             let created_at = DateTime::parse_from_rfc3339(&created_at_str)
-                .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        2,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                })?
+                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e)))?
                 .with_timezone(&Utc);
 
             Ok(Thought {
@@ -48,19 +42,14 @@ impl ThoughtsRepository {
 
     /// List all thoughts in chronological order (oldest first)
     pub fn list_all(conn: &Connection) -> Result<Vec<Thought>, ThoughtError> {
-        let mut stmt =
-            conn.prepare("SELECT id, content, created_at FROM thoughts ORDER BY created_at ASC")?;
+        let mut stmt = conn.prepare("SELECT id, content, created_at FROM thoughts ORDER BY created_at ASC")?;
 
         let thoughts = stmt
             .query_map([], |row| {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            2,
-                            rusqlite::types::Type::Text,
-                            Box::new(e),
-                        )
+                        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
                     })?
                     .with_timezone(&Utc);
 
@@ -93,11 +82,7 @@ impl ThoughtsRepository {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            2,
-                            rusqlite::types::Type::Text,
-                            Box::new(e),
-                        )
+                        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
                     })?
                     .with_timezone(&Utc);
 

@@ -13,9 +13,7 @@ impl EntitiesRepository {
     pub fn find_or_create(conn: &Connection, entity: &Entity) -> Result<i64, ThoughtError> {
         // Try to find existing entity (case-insensitive via COLLATE NOCASE)
         let mut stmt = conn.prepare("SELECT id FROM entities WHERE name = ?1")?;
-        let existing: Option<i64> = stmt
-            .query_row([&entity.name], |row| row.get(0))
-            .optional()?;
+        let existing: Option<i64> = stmt.query_row([&entity.name], |row| row.get(0)).optional()?;
 
         if let Some(id) = existing {
             return Ok(id);
@@ -42,8 +40,7 @@ impl EntitiesRepository {
     /// Find an entity by name (case-insensitive)
     pub fn find_by_name(conn: &Connection, name: &str) -> Result<Option<Entity>, ThoughtError> {
         let lowercase_name = name.to_lowercase();
-        let mut stmt =
-            conn.prepare("SELECT id, name, canonical_name FROM entities WHERE name = ?1")?;
+        let mut stmt = conn.prepare("SELECT id, name, canonical_name FROM entities WHERE name = ?1")?;
 
         let entity = stmt
             .query_row([lowercase_name], |row| {
@@ -60,8 +57,7 @@ impl EntitiesRepository {
 
     /// List all entities in alphabetical order
     pub fn list_all(conn: &Connection) -> Result<Vec<Entity>, ThoughtError> {
-        let mut stmt = conn
-            .prepare("SELECT id, name, canonical_name FROM entities ORDER BY canonical_name ASC")?;
+        let mut stmt = conn.prepare("SELECT id, name, canonical_name FROM entities ORDER BY canonical_name ASC")?;
 
         let entities = stmt
             .query_map([], |row| {
@@ -121,7 +117,7 @@ mod tests {
             "INSERT INTO thoughts (content, created_at) VALUES ('Test', datetime('now'))",
             [],
         )
-        .unwrap();
+            .unwrap();
         let thought_id = conn.last_insert_rowid();
 
         let result = EntitiesRepository::link_to_thought(&conn, entity_id, thought_id);

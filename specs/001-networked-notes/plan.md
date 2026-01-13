@@ -307,12 +307,12 @@ See [quickstart.md](./quickstart.md) for user-facing guide to new functionality.
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Regex performance on large notes | Limit note size (10k chars), benchmark parser |
-| Entity name collisions (case variants) | COLLATE NOCASE + canonical_name pattern |
-| Database migration failures | Transactional migration, backup existing DB |
-| Complex entity syntax edge cases | Graceful degradation, log parse warnings |
+| Risk                                   | Mitigation                                    |
+|----------------------------------------|-----------------------------------------------|
+| Regex performance on large notes       | Limit note size (10k chars), benchmark parser |
+| Entity name collisions (case variants) | COLLATE NOCASE + canonical_name pattern       |
+| Database migration failures            | Transactional migration, backup existing DB   |
+| Complex entity syntax edge cases       | Graceful degradation, log parse warnings      |
 
 ## Next Steps
 

@@ -39,14 +39,9 @@ fn test_add_command_oversized_content() {
     let large_content = "a".repeat(10_001);
     let result = run_wet_command(&["add", &large_content], Some(&temp_db));
 
-    assert_ne!(
-        result.status, 0,
-        "Command should fail with oversized content"
-    );
+    assert_ne!(result.status, 0, "Command should fail with oversized content");
     assert!(
-        result.stderr.contains("exceeds")
-            || result.stderr.contains("too long")
-            || result.stderr.contains("maximum"),
+        result.stderr.contains("exceeds") || result.stderr.contains("too long") || result.stderr.contains("maximum"),
         "Should report size limit error. Got: {}",
         result.stderr
     );
@@ -57,10 +52,7 @@ fn test_add_command_whitespace_only() {
     let temp_db = setup_temp_db();
     let result = run_wet_command(&["add", "   "], Some(&temp_db));
 
-    assert_ne!(
-        result.status, 0,
-        "Command should fail with whitespace-only content"
-    );
+    assert_ne!(result.status, 0, "Command should fail with whitespace-only content");
     assert!(
         result.stderr.contains("empty") || result.stderr.contains("cannot be empty"),
         "Should report empty content error. Got: {}",

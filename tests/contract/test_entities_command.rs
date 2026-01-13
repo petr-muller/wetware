@@ -25,10 +25,7 @@ fn test_entities_command_empty_database() {
 
     let result = run_wet_command(&["entities"], Some(&temp_db));
 
-    assert_eq!(
-        result.status, 0,
-        "Command should succeed even with no entities"
-    );
+    assert_eq!(result.status, 0, "Command should succeed even with no entities");
     assert!(
         result.stdout.contains("No entities") || result.stdout.is_empty(),
         "Should indicate no entities found. Got: {}",
@@ -78,8 +75,9 @@ fn test_entities_command_canonical_capitalization() {
 
     // Should NOT show other capitalizations
     assert!(!result.stdout.contains("SARAH"), "Should not show SARAH");
-    assert!(
-        result.stdout.matches("sarah").count() == 0,
+    assert_eq!(
+        result.stdout.matches("sarah").count(),
+        0,
         "Should not show lowercase sarah as separate entity"
     );
 }

@@ -331,12 +331,12 @@ What performance characteristics should we target for interactive CLI usage?
 
 ### Performance Goals Established
 
-| Operation | Target | Rationale |
-|-----------|--------|-----------|
-| `wet add` | <100ms | Interactive typing threshold |
-| `wet notes` | <100ms | Instant listing for <1000 notes |
+| Operation        | Target | Rationale                       |
+|------------------|--------|---------------------------------|
+| `wet add`        | <100ms | Interactive typing threshold    |
+| `wet notes`      | <100ms | Instant listing for <1000 notes |
 | `wet notes --on` | <500ms | Complex query, acceptable delay |
-| `wet entities` | <100ms | Simple distinct query |
+| `wet entities`   | <100ms | Simple distinct query           |
 
 ### Optimization Strategies
 
@@ -372,14 +372,14 @@ CREATE INDEX idx_notes_created_at ON notes(created_at);
 
 ## Summary of Technical Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| Entity Parsing | Regex `\[([^\[\]]+)\]` | Simple, efficient, proven |
-| Storage Schema | Normalized 3-table design | Query performance, integrity |
-| Case Matching | SQL COLLATE NOCASE | Database-level, efficient |
-| CLI Commands | `add`, `notes [--on]`, `entities` | Consistent, minimal |
-| Error Handling | Layered types with thiserror | Clear, structured, idiomatic |
-| Testing | TDD with unit/integration/contract | 90%+ coverage, maintainable |
-| Performance | Indexed queries, <100ms target | Interactive CLI threshold |
+| Area           | Decision                           | Rationale                    |
+|----------------|------------------------------------|------------------------------|
+| Entity Parsing | Regex `\[([^\[\]]+)\]`             | Simple, efficient, proven    |
+| Storage Schema | Normalized 3-table design          | Query performance, integrity |
+| Case Matching  | SQL COLLATE NOCASE                 | Database-level, efficient    |
+| CLI Commands   | `add`, `notes [--on]`, `entities`  | Consistent, minimal          |
+| Error Handling | Layered types with thiserror       | Clear, structured, idiomatic |
+| Testing        | TDD with unit/integration/contract | 90%+ coverage, maintainable  |
+| Performance    | Indexed queries, <100ms target     | Interactive CLI threshold    |
 
 All technical unknowns resolved. Ready for Phase 1 (Data Model & Contracts).

@@ -38,9 +38,7 @@ mod tests {
     fn test_get_memory_connection() {
         let conn = get_memory_connection().unwrap();
         // Verify foreign keys are enabled
-        let fk_enabled: i32 = conn
-            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
-            .unwrap();
+        let fk_enabled: i32 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0)).unwrap();
         assert_eq!(fk_enabled, 1);
     }
 
@@ -62,9 +60,7 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
         let conn = get_connection(Some(&db_path)).unwrap();
 
-        let fk_enabled: i32 = conn
-            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
-            .unwrap();
+        let fk_enabled: i32 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0)).unwrap();
         assert_eq!(fk_enabled, 1);
     }
 }
