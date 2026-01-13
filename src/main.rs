@@ -1,65 +1,23 @@
-use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::Parser;
+use std::env;
+use std::path::PathBuf;
+use std::process;
+use wetware::cli::{Cli, Commands};
 
-mod model;
-mod storage;
-
-use storage::Storage;
-
-#[derive(Parser)]
-#[command(name = "wet")]
-#[command(about = "Wetware - track, organize, and process thoughts")]
-struct Cli {
-    /// Path to the database file
-    #[arg(short, long, default_value = "wetware.db")]
-    database: String,
-
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Add a new thought
-    Add {
-        /// The thought text
-        thought: String,
-    },
-    /// List all thoughts
-    Thoughts,
-}
-
-fn main() -> Result<()> {
+fn main() {
     let cli = Cli::parse();
 
-    // Create and initialize storage with the provided database path
-    let storage = storage::SqliteStorage::new(&cli.database);
-    storage.init().context("Failed to initialize storage")?;
+    // Get database path from environment variable or use default
+    let db_path = env::var("WETWARE_DB").ok().map(PathBuf::from);
 
-    match cli.command {
-        Commands::Add { thought } => {
-            println!("Adding thought: {}", thought);
-            let thought = storage
-                .save_thought(&thought)
-                .context("Failed to save thought")?;
-            println!("Thought saved with ID: {}", thought.id());
-        }
-        Commands::Thoughts => {
-            println!("Listing all thoughts:");
-            let thoughts = storage
-                .get_thoughts()
-                .context("Failed to retrieve thoughts")?;
+    let result = match cli.command {
+        Commands::Add { content } => wetware::cli::add::execute(content, db_path.as_deref()),
+        Commands::Thoughts { on } => wetware::cli::thoughts::execute(db_path.as_deref(), on.as_deref()),
+        Commands::Entities => wetware::cli::entities::execute(db_path.as_deref()),
+    };
 
-            if thoughts.is_empty() {
-                println!("No thoughts found.");
-                return Ok(());
-            }
-
-            for thought in thoughts {
-                println!("{}: {}", thought.id(), thought.content());
-            }
-        }
+    if let Err(e) = result {
+        eprintln!("Error: {}", e);
+        process::exit(1);
     }
-
-    Ok(())
 }
