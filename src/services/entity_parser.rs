@@ -5,7 +5,7 @@ use regex::Regex;
 lazy_static! {
     /// Regex pattern for entity syntax: [entity-name]
     /// Matches content within square brackets, excluding nested brackets
-    static ref ENTITY_PATTERN: Regex = Regex::new(r"\[([^\[\]]+)\]").unwrap();
+    pub static ref ENTITY_PATTERN: Regex = Regex::new(r"\[([^\[\]]+)\]").unwrap();
 }
 
 /// Extract entity names from text
