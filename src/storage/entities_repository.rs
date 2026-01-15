@@ -117,7 +117,7 @@ mod tests {
             "INSERT INTO thoughts (content, created_at) VALUES ('Test', datetime('now'))",
             [],
         )
-            .unwrap();
+        .unwrap();
         let thought_id = conn.last_insert_rowid();
 
         let result = EntitiesRepository::link_to_thought(&conn, entity_id, thought_id);
