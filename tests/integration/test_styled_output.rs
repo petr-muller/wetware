@@ -43,6 +43,7 @@ fn test_styled_output_with_color_auto() {
 }
 
 #[test]
+#[allow(clippy::overly_complex_bool_expr)]
 fn test_color_mode_auto_returns_bool() {
     // ColorMode::Auto.should_use_colors() returns a boolean based on TTY detection.
     // We don't assert a specific value since the result depends on the test runner:

@@ -59,10 +59,10 @@ The recommended pattern breaks down as follows:
 
 The pattern produces two capture groups with context-dependent meaning:
 
-| Syntax Type | Capture 1 | Capture 2 | Entity Name | Display Text |
-|-------------|-----------|-----------|-------------|--------------|
-| Traditional `[entity]` | "entity" | None | capture 1 | capture 1 |
-| Aliased `[alias](entity)` | "alias" | "entity" | capture 2 | capture 1 |
+| Syntax Type               | Capture 1 | Capture 2 | Entity Name | Display Text |
+|---------------------------|-----------|-----------|-------------|--------------|
+| Traditional `[entity]`    | "entity"  | None      | capture 1   | capture 1    |
+| Aliased `[alias](entity)` | "alias"   | "entity"  | capture 2   | capture 1    |
 
 **Implementation Logic**:
 ```rust
@@ -135,13 +135,13 @@ r"\[(.+)\](?:\((.+)\))?"
 
 The pattern gracefully handles malformed input by falling back to traditional syntax:
 
-| Input | Matches | Behavior |
-|-------|---------|----------|
-| `[alias](` | `[alias]` as traditional | Unclosed paren ignored |
-| `[alias](entity` | `[alias]` as traditional | Unclosed paren ignored |
-| `[alias](entity][x]` | Two traditional matches | Treats as separate entities |
-| `[a]b(c)` | `[a]` as traditional | Letter breaks the pattern |
-| `[a] (c)` | `[a]` as traditional | Space breaks the pattern |
+| Input                | Matches                  | Behavior                    |
+|----------------------|--------------------------|-----------------------------|
+| `[alias](`           | `[alias]` as traditional | Unclosed paren ignored      |
+| `[alias](entity`     | `[alias]` as traditional | Unclosed paren ignored      |
+| `[alias](entity][x]` | Two traditional matches  | Treats as separate entities |
+| `[a]b(c)`            | `[a]` as traditional     | Letter breaks the pattern   |
+| `[a] (c)`            | `[a]` as traditional     | Space breaks the pattern    |
 
 **Design Decision**: This graceful degradation is DESIRABLE because:
 1. Users don't experience catastrophic failures for typos
@@ -152,13 +152,13 @@ The pattern gracefully handles malformed input by falling back to traditional sy
 
 The regex pattern uses `+` (one or more) quantifier, preventing completely empty captures. However, whitespace-only content is allowed by the regex:
 
-| Input | Regex Match | After Trim | Validation Result |
-|-------|-------------|------------|-------------------|
-| `[]` | NO MATCH | - | Rejected by regex |
-| `[   ]` | MATCH: "   " | "" (empty) | Must reject in code |
-| `[alias]()` | MATCH: alias, "" | alias, "" (empty) | Treat as traditional |
+| Input          | Regex Match         | After Trim        | Validation Result    |
+|----------------|---------------------|-------------------|----------------------|
+| `[]`           | NO MATCH            | -                 | Rejected by regex    |
+| `[   ]`        | MATCH: "   "        | "" (empty)        | Must reject in code  |
+| `[alias]()`    | MATCH: alias, ""    | alias, "" (empty) | Treat as traditional |
 | `[alias](   )` | MATCH: alias, "   " | alias, "" (empty) | Treat as traditional |
-| `[](entity)` | NO MATCH | - | Rejected by regex |
+| `[](entity)`   | NO MATCH            | -                 | Rejected by regex    |
 
 **Validation Requirements**:
 1. MUST trim whitespace from all captures before use
