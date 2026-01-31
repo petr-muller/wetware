@@ -32,6 +32,9 @@ Wetware is a Rust project that helps track "thoughts" - brief snippets of inform
 ## Active Technologies
 - Rust 2024 edition + clap 4.5, rusqlite 0.32, regex 1.11, chrono 0.4, thiserror 2.0 (002-styled-entity-output)
 - SQLite (rusqlite) (002-styled-entity-output)
+- Rust 2024 edition (matching Cargo.toml) (003-entity-reference-aliases)
+- SQLite database (thoughts table stores content as-is, entity extraction happens at runtime) (003-entity-reference-aliases)
 
 ## Recent Changes
+- 003-entity-reference-aliases: Added support for aliased entity references using markdown-like syntax `[alias](entity)`. Migrated from lazy_static to std::sync::LazyLock. Pattern: `r"\[([^\[\]]+)\](?:\(([^\(\)]+)\))?"`
 - 002-styled-entity-output: Added Rust 2024 edition + clap 4.5, rusqlite 0.32, regex 1.11, chrono 0.4, thiserror 2.0

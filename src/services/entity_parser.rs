@@ -1,27 +1,60 @@
 /// Entity parser service - extracts entity references from note text
-use lazy_static::lazy_static;
 use regex::Regex;
+use std::sync::LazyLock;
 
-lazy_static! {
-    /// Regex pattern for entity syntax: [entity-name]
-    /// Matches content within square brackets, excluding nested brackets
-    pub static ref ENTITY_PATTERN: Regex = Regex::new(r"\[([^\[\]]+)\]").unwrap();
-}
+/// Regex pattern for entity syntax: [entity] or [alias](entity)
+///
+/// Matches both traditional and aliased entity references:
+/// - Traditional: `[entity]` - entity name in square brackets
+/// - Aliased: `[alias](entity)` - display text in brackets, entity in parentheses
+///
+/// Capture groups:
+/// - Group 1: Display text (alias or entity name for traditional syntax)
+/// - Group 2: Target entity (optional, only present for aliased syntax)
+///
+/// This pattern maintains full backward compatibility with existing `[entity]` syntax
+/// while enabling natural language aliases like `[robot](robotics)`.
+pub static ENTITY_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[([^\[\]]+)\](?:\(([^\(\)]+)\))?").unwrap());
 
 /// Extract entity names from text
+///
+/// Supports both traditional `[entity]` and aliased `[alias](entity)` syntax.
+/// For aliased syntax, returns the target entity (not the alias).
 ///
 /// # Examples
 ///
 /// ```
 /// use wetware::services::entity_parser::extract_entities;
 ///
+/// // Traditional syntax
 /// let entities = extract_entities("Meeting with [Sarah] about [project-alpha]");
 /// assert_eq!(entities, vec!["Sarah", "project-alpha"]);
+///
+/// // Aliased syntax (returns target entity)
+/// let entities = extract_entities("Started [ML](machine-learning) course");
+/// assert_eq!(entities, vec!["machine-learning"]);
+///
+/// // Mixed syntax
+/// let entities = extract_entities("[robotics] and [robot](robotics)");
+/// assert_eq!(entities, vec!["robotics", "robotics"]);
 /// ```
 pub fn extract_entities(text: &str) -> Vec<String> {
     ENTITY_PATTERN
         .captures_iter(text)
-        .map(|cap| cap[1].trim().to_string())
+        .filter_map(|cap| {
+            // Capture group 1: alias (or entity for traditional syntax)
+            // Capture group 2: entity reference (if aliased syntax)
+            let alias = cap[1].trim();
+            let entity = cap.get(2).map(|m| m.as_str().trim());
+
+            // Return target entity, not alias
+            match entity {
+                Some(ent) if !ent.is_empty() => Some(ent.to_string()), // Aliased syntax
+                None if !alias.is_empty() => Some(alias.to_string()),  // Traditional syntax
+                _ => None,                                             // Invalid (empty alias or empty entity)
+            }
+        })
         .collect()
 }
 
@@ -136,5 +169,64 @@ mod tests {
     fn test_extract_whitespace_trimmed() {
         let entities = extract_entities("[  Sarah  ]");
         assert_eq!(entities, vec!["Sarah"]);
+    }
+
+    // ========== User Story 1: Aliased Entity Reference Tests ==========
+
+    #[test]
+    fn test_extract_aliased_entity() {
+        let entities = extract_entities("Started [ML](machine-learning) course");
+        assert_eq!(entities, vec!["machine-learning"]); // Returns target entity, not alias
+    }
+
+    #[test]
+    fn test_extract_mixed_syntax() {
+        let entities = extract_entities("[robotics] and [robot](robotics)");
+        assert_eq!(entities, vec!["robotics", "robotics"]); // Both extract same target entity
+    }
+
+    #[test]
+    fn test_extract_aliased_with_whitespace() {
+        let entities = extract_entities("[ ML ]( machine-learning )");
+        assert_eq!(entities, vec!["machine-learning"]); // Whitespace trimmed from both
+    }
+
+    #[test]
+    fn test_extract_empty_alias_rejected() {
+        let entities = extract_entities("[](entity)");
+        assert!(entities.is_empty()); // Empty alias → no match
+    }
+
+    #[test]
+    fn test_extract_empty_entity_fallback() {
+        let entities = extract_entities("[alias]()");
+        assert_eq!(entities, vec!["alias"]); // Empty entity → treated as traditional
+    }
+
+    #[test]
+    fn test_extract_malformed_unclosed_paren() {
+        let entities = extract_entities("[alias](unclosed");
+        assert_eq!(entities, vec!["alias"]); // Unclosed paren → treated as traditional
+    }
+
+    #[test]
+    fn test_extract_unique_deduplicates_by_target() {
+        let unique = extract_unique_entities("[robot](robotics) and [robotics]");
+        assert_eq!(unique, vec!["robotics"]); // Both reference same entity → deduplicated
+    }
+
+    // ========== User Story 3: Backward Compatibility Tests ==========
+
+    #[test]
+    fn test_traditional_syntax_unchanged() {
+        // Verify traditional [entity] syntax works exactly as before
+        let entities = extract_entities("[Sarah] met [John] about [project-alpha]");
+        assert_eq!(entities, vec!["Sarah", "John", "project-alpha"]);
+
+        // All original test cases should still work
+        assert_eq!(extract_entities("Meeting with [Sarah]"), vec!["Sarah"]);
+        assert_eq!(extract_entities("[entity1] [entity2]"), vec!["entity1", "entity2"]);
+        assert!(extract_entities("No entities here").is_empty());
+        assert!(extract_entities("Empty [] ignored").is_empty());
     }
 }
