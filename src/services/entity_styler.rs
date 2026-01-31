@@ -106,19 +106,24 @@ impl EntityStyler {
 
     /// Render thought content with styled entities.
     ///
+    /// Supports both traditional `[entity]` and aliased `[alias](entity)` syntax.
+    /// For aliased syntax, displays the alias but colors by the target entity.
+    ///
     /// This method:
-    /// - Finds all entity references (text in square brackets)
-    /// - Removes the bracket markup
+    /// - Finds all entity references (traditional and aliased)
+    /// - Removes the markup (brackets and parentheses)
+    /// - Displays the alias for aliased syntax, entity name for traditional
+    /// - Colors based on target entity for consistent coloring
     /// - Applies bold and color styling when `use_colors` is true
     /// - Preserves plain text segments unchanged
     ///
     /// # Arguments
     ///
-    /// * `content` - The thought content with entity markup (e.g., `"Meeting with [Sarah]"`)
+    /// * `content` - The thought content with entity markup
     ///
     /// # Returns
     ///
-    /// The rendered string with entities styled or plain (without brackets)
+    /// The rendered string with entities styled or plain (without markup)
     ///
     /// # Examples
     ///
@@ -126,8 +131,14 @@ impl EntityStyler {
     /// use wetware::services::entity_styler::EntityStyler;
     ///
     /// let mut styler = EntityStyler::new(false);
+    ///
+    /// // Traditional syntax
     /// let output = styler.render_content("[Sarah] called about [project-alpha]");
     /// assert_eq!(output, "Sarah called about project-alpha");
+    ///
+    /// // Aliased syntax (displays alias)
+    /// let output = styler.render_content("[ML](machine-learning) course");
+    /// assert_eq!(output, "ML course");
     /// ```
     pub fn render_content(&mut self, content: &str) -> String {
         let mut result = String::new();
@@ -135,18 +146,23 @@ impl EntityStyler {
 
         for cap in ENTITY_PATTERN.captures_iter(content) {
             let full_match = cap.get(0).unwrap();
-            let entity_name = cap[1].trim();
+
+            // Group 1: display text (alias or entity name for traditional)
+            // Group 2: target entity (optional, only for aliased syntax)
+            let display_text = cap[1].trim();
+            let target_entity = cap.get(2).map(|m| m.as_str().trim()).unwrap_or(display_text); // If no group 2, use group 1
 
             // Add text before this entity
             result.push_str(&content[last_end..full_match.start()]);
 
-            // Add styled or plain entity name
+            // Add styled or plain entity
             if self.use_colors {
-                let color = self.get_color(entity_name);
-                let styled = entity_name.bold().color(color).to_string();
+                // Color by TARGET entity, display ALIAS
+                let color = self.get_color(target_entity);
+                let styled = display_text.bold().color(color).to_string();
                 result.push_str(&styled);
             } else {
-                result.push_str(entity_name);
+                result.push_str(display_text);
             }
 
             last_end = full_match.end();
@@ -298,5 +314,86 @@ mod tests {
         let mut styler = EntityStyler::new(false);
         let output = styler.render_content("[  Sarah  ]");
         assert_eq!(output, "Sarah");
+    }
+
+    // ========== User Story 2: Aliased Entity Rendering Tests ==========
+
+    #[test]
+    fn test_render_aliased_entity() {
+        let mut styler = EntityStyler::new(false);
+        let output = styler.render_content("Started [ML](machine-learning) course");
+        assert_eq!(output, "Started ML course"); // Shows alias, not entity
+    }
+
+    #[test]
+    fn test_render_mixed_syntax_same_color() {
+        let mut styler = EntityStyler::new(true);
+        // First render traditional syntax to assign color
+        styler.render_content("[robotics]");
+
+        // Now render aliased reference to same entity
+        let output = styler.render_content("[robot](robotics)");
+
+        // Both should use same color mapping (one entity in color_map)
+        assert_eq!(styler.color_map.len(), 1); // Only one entity color assigned
+        assert!(output.contains("robot")); // Displays alias
+    }
+
+    #[test]
+    fn test_render_aliased_with_whitespace() {
+        let mut styler = EntityStyler::new(false);
+        let output = styler.render_content("[ ML ]( machine-learning )");
+        assert_eq!(output, "ML"); // Whitespace trimmed, alias displayed
+    }
+
+    #[test]
+    fn test_render_aliased_displays_alias_not_entity() {
+        let mut styler = EntityStyler::new(false);
+        let output = styler.render_content("[robot](robotics)");
+        assert_eq!(output, "robot"); // Shows "robot" not "robotics"
+        assert!(!output.contains("robotics"));
+    }
+
+    #[test]
+    fn test_render_color_by_target_entity() {
+        let mut styler = EntityStyler::new(true);
+        let output = styler.render_content("[robot](robotics) and [machine](robotics)");
+
+        // Both aliases reference same entity, should have same color
+        assert_eq!(styler.color_map.len(), 1); // Only one entity color
+        assert!(output.contains("robot"));
+        assert!(output.contains("machine"));
+    }
+
+    #[test]
+    fn test_render_multiple_aliases_same_entity_same_color() {
+        let mut styler = EntityStyler::new(true);
+        styler.render_content("[robotics]"); // Traditional
+        let color1 = *styler.color_map.get("robotics").unwrap();
+
+        styler.render_content("[robot](robotics)"); // Aliased to same entity
+        let color2 = *styler.color_map.get("robotics").unwrap();
+
+        assert_eq!(color1, color2); // Same entity = same color
+    }
+
+    // ========== User Story 3: Backward Compatibility Tests ==========
+
+    #[test]
+    fn test_traditional_rendering_unchanged() {
+        // Verify traditional [entity] rendering works exactly as before
+        let mut styler = EntityStyler::new(false);
+
+        assert_eq!(styler.render_content("[Sarah]"), "Sarah");
+        assert_eq!(styler.render_content("[Sarah] and [John]"), "Sarah and John");
+        assert_eq!(
+            styler.render_content("Meeting with [Sarah] about [project-alpha]"),
+            "Meeting with Sarah about project-alpha"
+        );
+
+        // Brackets should be stripped
+        let output = styler.render_content("[entity]");
+        assert!(!output.contains('['));
+        assert!(!output.contains(']'));
     }
 }
