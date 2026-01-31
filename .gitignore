@@ -16,3 +16,34 @@ target/
 
 # Ad-hoc SQlite files
 *.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Profiling
+*.prof*
+
+# Rust library files
+*.rlib
+
+# Test coverage
+*.profraw
+*.profdata
+tarpaulin-report.html
+cobertura.xml
