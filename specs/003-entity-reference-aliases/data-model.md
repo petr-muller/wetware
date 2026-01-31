@@ -359,17 +359,17 @@ pub enum ValidationError {
 
 ## Comparison: Traditional vs. Aliased
 
-| Aspect | Traditional `[entity]` | Aliased `[alias](entity)` |
-|--------|----------------------|--------------------------|
-| **Syntax** | `[robotics]` | `[robot](robotics)` |
-| **Display text** | "robotics" | "robot" |
-| **Target entity** | "robotics" | "robotics" |
-| **Storage** | Stored as-is in content | Stored as-is in content |
-| **Extraction** | Returns "robotics" | Returns "robotics" |
-| **Rendering** | Shows "robotics" in color | Shows "robot" in color |
-| **Color** | Based on "robotics" | Based on "robotics" |
-| **Query match** | Matches entity "robotics" | Matches entity "robotics" |
-| **Validation** | Entity must exist | Entity must exist, alias valid |
+| Aspect            | Traditional `[entity]`    | Aliased `[alias](entity)`      |
+|-------------------|---------------------------|--------------------------------|
+| **Syntax**        | `[robotics]`              | `[robot](robotics)`            |
+| **Display text**  | "robotics"                | "robot"                        |
+| **Target entity** | "robotics"                | "robotics"                     |
+| **Storage**       | Stored as-is in content   | Stored as-is in content        |
+| **Extraction**    | Returns "robotics"        | Returns "robotics"             |
+| **Rendering**     | Shows "robotics" in color | Shows "robot" in color         |
+| **Color**         | Based on "robotics"       | Based on "robotics"            |
+| **Query match**   | Matches entity "robotics" | Matches entity "robotics"      |
+| **Validation**    | Entity must exist         | Entity must exist, alias valid |
 
 ## Examples
 

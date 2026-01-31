@@ -71,19 +71,19 @@ assert_eq!(entities, vec!["valid"]); // Empty alias ignored
 
 #### Edge Cases
 
-| Input | Output | Reason |
-|-------|--------|--------|
-| `[entity]` | `["entity"]` | Traditional syntax |
-| `[alias](entity)` | `["entity"]` | Aliased syntax → returns target |
-| `[alias](entity1) and [entity1]` | `["entity1", "entity1"]` | Both extract same entity |
-| `[  spaced  ]` | `["spaced"]` | Whitespace trimmed |
-| `[ alias ]( entity )` | `["entity"]` | Whitespace trimmed from both |
-| `[]` | `[]` | Empty content → no match |
-| `[](entity)` | `[]` | Empty alias → no match |
-| `[alias]()` | `["alias"]` | Empty entity → treated as traditional |
-| `[alias](` | `["alias"]` | Unclosed paren → treated as traditional |
-| `[entity] (text)` | `["entity"]` | Space breaks aliased syntax |
-| `unclosed [entity` | `[]` | Malformed → no match |
+| Input                            | Output                   | Reason                                  |
+|----------------------------------|--------------------------|-----------------------------------------|
+| `[entity]`                       | `["entity"]`             | Traditional syntax                      |
+| `[alias](entity)`                | `["entity"]`             | Aliased syntax → returns target         |
+| `[alias](entity1) and [entity1]` | `["entity1", "entity1"]` | Both extract same entity                |
+| `[  spaced  ]`                   | `["spaced"]`             | Whitespace trimmed                      |
+| `[ alias ]( entity )`            | `["entity"]`             | Whitespace trimmed from both            |
+| `[]`                             | `[]`                     | Empty content → no match                |
+| `[](entity)`                     | `[]`                     | Empty alias → no match                  |
+| `[alias]()`                      | `["alias"]`              | Empty entity → treated as traditional   |
+| `[alias](`                       | `["alias"]`              | Unclosed paren → treated as traditional |
+| `[entity] (text)`                | `["entity"]`             | Space breaks aliased syntax             |
+| `unclosed [entity`               | `[]`                     | Malformed → no match                    |
 
 #### Backward Compatibility
 
@@ -139,13 +139,13 @@ assert_eq!(unique, vec!["Z", "A", "M"]); // First occurrence of each entity
 
 #### Edge Cases
 
-| Input | Output | Reason |
-|-------|--------|--------|
-| `[robotics] [robot](robotics)` | `["robotics"]` | Same target entity → deduplicated |
-| `[A](entity) [B](entity)` | `["entity"]` | Different aliases, same target → deduplicated |
-| `[alias](entity1) [alias](entity2)` | `["entity1", "entity2"]` | Same alias, different targets → both kept |
-| `[Entity] [entity]` | `["Entity"]` | Case-insensitive dedup of traditional |
-| `[Alias](Entity) [alias](entity)` | `["Entity"]` | Case-insensitive dedup of aliased |
+| Input                               | Output                   | Reason                                        |
+|-------------------------------------|--------------------------|-----------------------------------------------|
+| `[robotics] [robot](robotics)`      | `["robotics"]`           | Same target entity → deduplicated             |
+| `[A](entity) [B](entity)`           | `["entity"]`             | Different aliases, same target → deduplicated |
+| `[alias](entity1) [alias](entity2)` | `["entity1", "entity2"]` | Same alias, different targets → both kept     |
+| `[Entity] [entity]`                 | `["Entity"]`             | Case-insensitive dedup of traditional         |
+| `[Alias](Entity) [alias](entity)`   | `["Entity"]`             | Case-insensitive dedup of aliased             |
 
 ## Entity Styler Service
 
@@ -226,27 +226,27 @@ fn render_with_color(&mut self, capture: Capture) -> String {
 
 **Examples**:
 
-| Input | Display Text | Color Based On | Result |
-|-------|-------------|----------------|--------|
-| `[Sarah]` | "Sarah" | "Sarah" | Sarah in color X |
-| `[ML](machine-learning)` | "ML" | "machine-learning" | ML in color Y |
-| `[robot](robotics)` | "robot" | "robotics" | robot in color Z |
-| `[robotics]` then `[robot](robotics)` | "robotics" then "robot" | both "robotics" | Both in color Z |
+| Input                                 | Display Text            | Color Based On     | Result           |
+|---------------------------------------|-------------------------|--------------------|------------------|
+| `[Sarah]`                             | "Sarah"                 | "Sarah"            | Sarah in color X |
+| `[ML](machine-learning)`              | "ML"                    | "machine-learning" | ML in color Y    |
+| `[robot](robotics)`                   | "robot"                 | "robotics"         | robot in color Z |
+| `[robotics]` then `[robot](robotics)` | "robotics" then "robot" | both "robotics"    | Both in color Z  |
 
 #### Edge Cases
 
-| Input | Plain Output | Notes |
-|-------|-------------|-------|
-| `[entity]` | `"entity"` | Traditional syntax |
-| `[alias](entity)` | `"alias"` | Shows alias, not entity |
-| `[robotics](robotics)` | `"robotics"` | Alias = entity OK |
-| `[]` | `"[]"` | Empty brackets → no match, shown as-is |
-| `[](entity)` | `"[](entity)"` | Empty alias → no match, shown as-is |
-| `[alias]()` | `"alias"` | Empty entity → treated as traditional |
-| `[alias](` | `"alias"` | Unclosed → treated as traditional |
-| `[alias](entity)[x]` | `"aliasx"` | Two separate matches |
-| `[entity] (text)` | `"entity (text)"` | Space → breaks aliased syntax |
-| `[  spaced  ]` | `"spaced"` | Whitespace trimmed |
+| Input                  | Plain Output      | Notes                                  |
+|------------------------|-------------------|----------------------------------------|
+| `[entity]`             | `"entity"`        | Traditional syntax                     |
+| `[alias](entity)`      | `"alias"`         | Shows alias, not entity                |
+| `[robotics](robotics)` | `"robotics"`      | Alias = entity OK                      |
+| `[]`                   | `"[]"`            | Empty brackets → no match, shown as-is |
+| `[](entity)`           | `"[](entity)"`    | Empty alias → no match, shown as-is    |
+| `[alias]()`            | `"alias"`         | Empty entity → treated as traditional  |
+| `[alias](`             | `"alias"`         | Unclosed → treated as traditional      |
+| `[alias](entity)[x]`   | `"aliasx"`        | Two separate matches                   |
+| `[entity] (text)`      | `"entity (text)"` | Space → breaks aliased syntax          |
+| `[  spaced  ]`         | `"spaced"`        | Whitespace trimmed                     |
 
 #### Backward Compatibility
 
