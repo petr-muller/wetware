@@ -14,8 +14,7 @@ use std::sync::LazyLock;
 ///
 /// This pattern maintains full backward compatibility with existing `[entity]` syntax
 /// while enabling natural language aliases like `[robot](robotics)`.
-pub static ENTITY_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[([^\[\]]+)](?:\(([^()]+)\))?").unwrap());
+pub static ENTITY_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\[\]]+)](?:\(([^()]+)\))?").unwrap());
 
 /// Extract entity names from text
 ///
