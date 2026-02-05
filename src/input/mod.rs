@@ -1,1 +1,2 @@
-// Input validation module placeholder
+// Input validation and handling module
+pub mod editor;

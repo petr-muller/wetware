@@ -40,7 +40,7 @@ impl EntitiesRepository {
     /// Find an entity by name (case-insensitive)
     pub fn find_by_name(conn: &Connection, name: &str) -> Result<Option<Entity>, ThoughtError> {
         let lowercase_name = name.to_lowercase();
-        let mut stmt = conn.prepare("SELECT id, name, canonical_name FROM entities WHERE name = ?1")?;
+        let mut stmt = conn.prepare("SELECT id, name, canonical_name, description FROM entities WHERE name = ?1")?;
 
         let entity = stmt
             .query_row([lowercase_name], |row| {
@@ -48,6 +48,7 @@ impl EntitiesRepository {
                     id: Some(row.get(0)?),
                     name: row.get(1)?,
                     canonical_name: row.get(2)?,
+                    description: row.get(3)?,
                 })
             })
             .optional()?;
@@ -57,7 +58,8 @@ impl EntitiesRepository {
 
     /// List all entities in alphabetical order
     pub fn list_all(conn: &Connection) -> Result<Vec<Entity>, ThoughtError> {
-        let mut stmt = conn.prepare("SELECT id, name, canonical_name FROM entities ORDER BY canonical_name ASC")?;
+        let mut stmt =
+            conn.prepare("SELECT id, name, canonical_name, description FROM entities ORDER BY canonical_name ASC")?;
 
         let entities = stmt
             .query_map([], |row| {
@@ -65,11 +67,42 @@ impl EntitiesRepository {
                     id: Some(row.get(0)?),
                     name: row.get(1)?,
                     canonical_name: row.get(2)?,
+                    description: row.get(3)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(entities)
+    }
+
+    /// Update entity description (or remove if None)
+    ///
+    /// Returns error if entity doesn't exist
+    pub fn update_description(
+        conn: &Connection,
+        entity_name: &str,
+        description: Option<String>,
+    ) -> Result<(), ThoughtError> {
+        let lowercase_name = entity_name.to_lowercase();
+
+        // Verify entity exists
+        let exists: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM entities WHERE name = ?1",
+            [&lowercase_name],
+            |row| row.get(0),
+        )?;
+
+        if !exists {
+            return Err(ThoughtError::EntityNotFound(entity_name.to_string()));
+        }
+
+        // Update description
+        conn.execute(
+            "UPDATE entities SET description = ?1 WHERE name = ?2",
+            (description, &lowercase_name),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -155,5 +188,54 @@ mod tests {
         assert_eq!(entities[0].canonical_name, "Apple");
         assert_eq!(entities[1].canonical_name, "Middle");
         assert_eq!(entities[2].canonical_name, "Zebra");
+    }
+
+    #[test]
+    fn test_update_description() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("TestEntity".to_string());
+        EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        // Add description
+        let desc = Some("Test description".to_string());
+        EntitiesRepository::update_description(&conn, "testentity", desc.clone()).unwrap();
+
+        // Verify description was set
+        let found = EntitiesRepository::find_by_name(&conn, "testentity").unwrap().unwrap();
+        assert_eq!(found.description, desc);
+    }
+
+    #[test]
+    fn test_update_description_to_none() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("TestEntity".to_string());
+        EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        // Add description
+        EntitiesRepository::update_description(&conn, "testentity", Some("Test".to_string())).unwrap();
+
+        // Remove description
+        EntitiesRepository::update_description(&conn, "testentity", None).unwrap();
+
+        // Verify description was removed
+        let found = EntitiesRepository::find_by_name(&conn, "testentity").unwrap().unwrap();
+        assert_eq!(found.description, None);
+    }
+
+    #[test]
+    fn test_update_description_nonexistent_entity() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = EntitiesRepository::update_description(&conn, "nonexistent", Some("Test".to_string()));
+        assert!(result.is_err());
+        match result {
+            Err(ThoughtError::EntityNotFound(name)) => assert_eq!(name, "nonexistent"),
+            _ => panic!("Expected EntityNotFound error"),
+        }
     }
 }

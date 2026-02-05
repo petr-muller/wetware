@@ -17,6 +17,15 @@ pub enum ThoughtError {
 
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+
+    #[error("Failed to launch editor '{0}'")]
+    EditorLaunchFailed(String),
+
+    #[error("Entity '{0}' not found")]
+    EntityNotFound(String),
+
+    #[error("File I/O error: {0}")]
+    FileError(#[from] std::io::Error),
 }
 
 #[cfg(test)]

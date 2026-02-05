@@ -1,4 +1,5 @@
 /// Database migrations module
+pub mod add_entity_descriptions_migration;
 pub mod networked_notes_migration;
 
 use crate::errors::ThoughtError;
@@ -8,6 +9,9 @@ use rusqlite::Connection;
 pub fn run_migrations(conn: &Connection) -> Result<(), ThoughtError> {
     // Run migration 001: networked notes
     networked_notes_migration::migrate(conn)?;
+
+    // Run migration 002: entity descriptions
+    add_entity_descriptions_migration::migrate_add_entity_descriptions(conn)?;
 
     Ok(())
 }
@@ -34,6 +38,19 @@ mod tests {
         assert!(tables.contains(&"thoughts".to_string()));
         assert!(tables.contains(&"entities".to_string()));
         assert!(tables.contains(&"thought_entities".to_string()));
+
+        // Verify description column exists in entities table
+        let description_col_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('entities') WHERE name='description'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            description_col_exists,
+            "description column should exist in entities table"
+        );
     }
 
     #[test]

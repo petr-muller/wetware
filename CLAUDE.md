@@ -30,11 +30,11 @@ Wetware is a Rust project that helps track "thoughts" - brief snippets of inform
 - User input handling layer
 
 ## Active Technologies
-- Rust 2024 edition + clap 4.5, rusqlite 0.32, regex 1.11, chrono 0.4, thiserror 2.0 (002-styled-entity-output)
-- SQLite (rusqlite) (002-styled-entity-output)
-- Rust 2024 edition (matching Cargo.toml) (003-entity-reference-aliases)
-- SQLite database (thoughts table stores content as-is, entity extraction happens at runtime) (003-entity-reference-aliases)
+- Rust 2024 edition + clap 4.5 (CLI), rusqlite 0.32 (SQLite), regex 1.11 (entity parsing), owo-colors 4 (styling), terminal_size 0.3 (terminal detection), tempfile 3.14 (editor support)
+- SQLite database (currently at `~/.local/share/wetware/thoughts.db` or `WETWARE_DB` env var)
+- Entity descriptions stored in `entities.description` column (NULL for entities without descriptions)
 
 ## Recent Changes
+- 001-entity-descriptions: Added entity description feature with three input methods (inline, file, interactive editor). Entities can have multi-paragraph descriptions. The `wet entities` command displays ellipsized previews when terminal width >= 60 characters. Descriptions support entity references `[entity]` and `[alias](target)`. Added `wet entity edit` command for managing descriptions.
 - 003-entity-reference-aliases: Added support for aliased entity references using markdown-like syntax `[alias](entity)`. Migrated from lazy_static to std::sync::LazyLock. Pattern: `r"\[([^\[\]]+)\](?:\(([^\(\)]+)\))?"`
 - 002-styled-entity-output: Added Rust 2024 edition + clap 4.5, rusqlite 0.32, regex 1.11, chrono 0.4, thiserror 2.0
