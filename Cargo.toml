@@ -13,7 +13,7 @@ path = "src/main.rs"
 chrono = "0.4.43"
 clap = { version = "4.5.54", features = ["derive"] }
 rusqlite = { version = "0.38.0", features = ["bundled"] }
-regex = "1.11"
+regex = "1.12"
 thiserror = "2.0"
 owo-colors = { version = "4", features = ["supports-colors"] }
 
