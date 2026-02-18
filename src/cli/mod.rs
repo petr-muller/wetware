@@ -1,6 +1,7 @@
 /// CLI module for command-line interface
 pub mod add;
 pub mod entities;
+pub mod entity_edit;
 pub mod thoughts;
 
 use crate::services::color_mode::ColorMode;
@@ -33,4 +34,24 @@ pub enum Commands {
     },
     /// List all entities
     Entities,
+    /// Entity operations
+    Entity {
+        #[command(subcommand)]
+        command: EntityCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum EntityCommands {
+    /// Edit entity description
+    Edit {
+        /// Entity name (case-insensitive)
+        entity_name: String,
+        /// Inline description text (mutually exclusive with --description-file)
+        #[arg(long)]
+        description: Option<String>,
+        /// Path to file containing description (mutually exclusive with --description)
+        #[arg(long)]
+        description_file: Option<std::path::PathBuf>,
+    },
 }
