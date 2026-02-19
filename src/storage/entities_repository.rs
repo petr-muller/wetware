@@ -75,6 +75,19 @@ impl EntitiesRepository {
         Ok(entities)
     }
 
+    /// Remove all entity associations for a thought
+    ///
+    /// Deletes all rows from `thought_entities` where `thought_id` matches.
+    /// Safe to call even if the thought has no existing associations (no-op).
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection (or transaction)
+    /// * `thought_id` - ID of the thought whose entity links should be removed
+    pub fn unlink_all_from_thought(conn: &Connection, thought_id: i64) -> Result<(), ThoughtError> {
+        conn.execute("DELETE FROM thought_entities WHERE thought_id = ?1", [thought_id])?;
+        Ok(())
+    }
+
     /// Update entity description (or remove if None)
     ///
     /// Returns error if entity doesn't exist
@@ -224,6 +237,61 @@ mod tests {
         // Verify description was removed
         let found = EntitiesRepository::find_by_name(&conn, "testentity").unwrap().unwrap();
         assert_eq!(found.description, None);
+    }
+
+    #[test]
+    fn test_unlink_all_from_thought_removes_links() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Create a thought
+        conn.execute(
+            "INSERT INTO thoughts (content, created_at) VALUES ('Test', datetime('now'))",
+            [],
+        )
+        .unwrap();
+        let thought_id = conn.last_insert_rowid();
+
+        // Create and link two entities
+        let entity1 = Entity::new("Alice".to_string());
+        let entity2 = Entity::new("Bob".to_string());
+        let entity1_id = EntitiesRepository::find_or_create(&conn, &entity1).unwrap();
+        let entity2_id = EntitiesRepository::find_or_create(&conn, &entity2).unwrap();
+        EntitiesRepository::link_to_thought(&conn, entity1_id, thought_id).unwrap();
+        EntitiesRepository::link_to_thought(&conn, entity2_id, thought_id).unwrap();
+
+        // Verify links exist
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM thought_entities WHERE thought_id = ?1",
+                [thought_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 2);
+
+        // Unlink all
+        EntitiesRepository::unlink_all_from_thought(&conn, thought_id).unwrap();
+
+        // Verify links are gone
+        let count_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM thought_entities WHERE thought_id = ?1",
+                [thought_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_after, 0);
+    }
+
+    #[test]
+    fn test_unlink_all_from_thought_no_links_is_noop() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Calling on a thought with no links should succeed silently
+        let result = EntitiesRepository::unlink_all_from_thought(&conn, 9999);
+        assert!(result.is_ok());
     }
 
     #[test]

@@ -17,6 +17,9 @@ coverage:
         if_ci_failed: error
         informational: false
         only_pulls: false
+    patch:
+      default:
+        target: 88%
 
 ignore:
   - "src/main.rs"  # Ignore the main.rs file as it's mainly CLI glue code
