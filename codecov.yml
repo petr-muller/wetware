@@ -19,8 +19,6 @@ coverage:
         only_pulls: false
     patch:
       default:
-        # Editor paths require spawning a real process and cannot be covered
-        # by subprocess-based contract tests; 88% accommodates this.
         target: 88%
 
 ignore:
