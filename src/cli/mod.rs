@@ -1,5 +1,6 @@
 /// CLI module for command-line interface
 pub mod add;
+pub mod edit;
 pub mod entities;
 pub mod entity_edit;
 pub mod thoughts;
@@ -31,6 +32,19 @@ pub enum Commands {
         /// Filter thoughts by entity name
         #[arg(long)]
         on: Option<String>,
+    },
+    /// Edit an existing thought
+    Edit {
+        /// ID of the thought to edit (visible in `wet` listing output as [id])
+        id: i64,
+        /// New content for the thought (mutually exclusive with --editor)
+        content: Option<String>,
+        /// New date for the thought in YYYY-MM-DD format
+        #[arg(long)]
+        date: Option<String>,
+        /// Open the thought in an interactive editor (mutually exclusive with CONTENT)
+        #[arg(long, conflicts_with = "content")]
+        editor: bool,
     },
     /// List all entities
     Entities,

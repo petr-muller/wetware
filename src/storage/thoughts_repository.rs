@@ -64,6 +64,29 @@ impl ThoughtsRepository {
         Ok(thoughts)
     }
 
+    /// Update an existing thought's content and/or date
+    ///
+    /// Applies the given content and created_at as the new values for the thought.
+    /// Returns `ThoughtNotFound` if no thought with the given ID exists.
+    ///
+    /// # Arguments
+    /// * `conn` - Database connection (or transaction)
+    /// * `id` - ID of the thought to update
+    /// * `content` - New content string
+    /// * `created_at` - New timestamp
+    pub fn update(conn: &Connection, id: i64, content: &str, created_at: DateTime<Utc>) -> Result<(), ThoughtError> {
+        let rows_changed = conn.execute(
+            "UPDATE thoughts SET content = ?1, created_at = ?2 WHERE id = ?3",
+            (content, created_at.to_rfc3339(), id),
+        )?;
+
+        if rows_changed == 0 {
+            return Err(ThoughtError::ThoughtNotFound(id));
+        }
+
+        Ok(())
+    }
+
     /// List thoughts filtered by entity name (case-insensitive)
     pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Thought>, ThoughtError> {
         let lowercase_name = entity_name.to_lowercase();
@@ -135,6 +158,62 @@ mod tests {
 
         let thoughts = ThoughtsRepository::list_all(&conn).unwrap();
         assert!(thoughts.is_empty());
+    }
+
+    #[test]
+    fn test_update_thought_content() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thought = Thought::new("Original content".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        let original_date = thought.created_at;
+
+        ThoughtsRepository::update(&conn, id, "Updated content", original_date).unwrap();
+
+        let retrieved = ThoughtsRepository::get_by_id(&conn, id).unwrap();
+        assert_eq!(retrieved.content, "Updated content");
+        // Date should be preserved (same as we passed in)
+        assert_eq!(retrieved.created_at.date_naive(), original_date.date_naive());
+    }
+
+    #[test]
+    fn test_update_thought_date() {
+        use chrono::{Datelike, NaiveDate};
+
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thought = Thought::new("Content stays the same".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+
+        let new_date = NaiveDate::from_ymd_opt(2026, 1, 15)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
+
+        ThoughtsRepository::update(&conn, id, &thought.content, new_date).unwrap();
+
+        let retrieved = ThoughtsRepository::get_by_id(&conn, id).unwrap();
+        assert_eq!(retrieved.content, "Content stays the same");
+        assert_eq!(retrieved.created_at.date_naive().year(), 2026);
+        assert_eq!(retrieved.created_at.date_naive().month(), 1);
+        assert_eq!(retrieved.created_at.date_naive().day(), 15);
+    }
+
+    #[test]
+    fn test_update_thought_nonexistent_id() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        use chrono::Utc;
+        let result = ThoughtsRepository::update(&conn, 9999, "content", Utc::now());
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(crate::errors::ThoughtError::ThoughtNotFound(9999))
+        ));
     }
 
     #[test]

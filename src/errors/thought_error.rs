@@ -24,6 +24,9 @@ pub enum ThoughtError {
     #[error("Entity '{0}' not found")]
     EntityNotFound(String),
 
+    #[error("Thought with ID {0} not found")]
+    ThoughtNotFound(i64),
+
     #[error("File I/O error: {0}")]
     FileError(#[from] std::io::Error),
 }
@@ -54,5 +57,17 @@ mod tests {
     fn test_parse_error_message() {
         let err = ThoughtError::ParseError("malformed bracket".to_string());
         assert_eq!(err.to_string(), "Failed to parse entity references: malformed bracket");
+    }
+
+    #[test]
+    fn test_thought_not_found_error_message() {
+        let err = ThoughtError::ThoughtNotFound(42);
+        assert_eq!(err.to_string(), "Thought with ID 42 not found");
+    }
+
+    #[test]
+    fn test_thought_not_found_preserves_id() {
+        let err = ThoughtError::ThoughtNotFound(999);
+        assert!(matches!(err, ThoughtError::ThoughtNotFound(999)));
     }
 }
