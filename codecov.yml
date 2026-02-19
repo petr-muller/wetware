@@ -17,6 +17,11 @@ coverage:
         if_ci_failed: error
         informational: false
         only_pulls: false
+    patch:
+      default:
+        # Editor paths require spawning a real process and cannot be covered
+        # by subprocess-based contract tests; 88% accommodates this.
+        target: 88%
 
 ignore:
   - "src/main.rs"  # Ignore the main.rs file as it's mainly CLI glue code
