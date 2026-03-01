@@ -16,7 +16,7 @@ rusqlite = { version = "0.38.0", features = ["bundled"] }
 regex = "1.12"
 thiserror = "2.0"
 owo-colors = { version = "4", features = ["supports-colors"] }
-terminal_size = "0.3"
+terminal_size = "0.4"
 tempfile = "3.14"
 
 [dev-dependencies]
