@@ -375,6 +375,44 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{Entity, Thought};
+    use chrono::Utc;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    fn make_thought(content: &str, days_ago: i64) -> Thought {
+        Thought {
+            id: Some(days_ago),
+            content: content.to_string(),
+            created_at: Utc::now() - chrono::Duration::days(days_ago),
+        }
+    }
+
+    fn make_entity(name: &str, description: Option<&str>) -> Entity {
+        Entity {
+            id: Some(1),
+            name: name.to_lowercase(),
+            canonical_name: name.to_string(),
+            description: description.map(|s| s.to_string()),
+        }
+    }
+
+    /// Render the app into a TestBackend and return the buffer text content.
+    fn render_to_string(app: &App, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| render(app, frame))
+            .unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let mut output = String::new();
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                output.push(buffer[(x, y)].symbol().chars().next().unwrap_or(' '));
+            }
+            output.push('\n');
+        }
+        output
+    }
 
     #[test]
     fn test_ansi_to_ratatui_color_cyan() {
@@ -435,5 +473,202 @@ mod tests {
         assert_eq!(line.spans[0].content, "the ");
         assert_eq!(line.spans[1].content, "ML"); // Displays alias
         assert_eq!(line.spans[2].content, " course");
+    }
+
+    // === Render tests using TestBackend ===
+
+    #[test]
+    fn test_render_empty_thoughts_shows_placeholder() {
+        let app = App::new(vec![], vec![]);
+        let output = render_to_string(&app, 60, 10);
+        assert!(output.contains("No thoughts recorded yet"));
+    }
+
+    #[test]
+    fn test_render_empty_thoughts_with_filter_shows_filter_message() {
+        let mut app = App::new(vec![], vec![]);
+        app.active_filter = Some("Sarah".to_string());
+        app.recompute_displayed_thoughts();
+        let output = render_to_string(&app, 60, 10);
+        assert!(output.contains("No thoughts referencing"));
+        assert!(output.contains("Sarah"));
+    }
+
+    #[test]
+    fn test_render_thoughts_shows_content() {
+        let thoughts = vec![make_thought("Meeting with team", 0)];
+        let app = App::new(thoughts, vec![]);
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("Meeting with team"));
+    }
+
+    #[test]
+    fn test_render_status_bar_shows_sort_order() {
+        let app = App::new(vec![], vec![]);
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("Sort: Oldest first"));
+    }
+
+    #[test]
+    fn test_render_status_bar_shows_key_hints() {
+        let app = App::new(vec![], vec![]);
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("q:Quit"));
+    }
+
+    #[test]
+    fn test_render_status_bar_shows_active_filter() {
+        let thoughts = vec![make_thought("[Sarah] hello", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.active_filter = Some("Sarah".to_string());
+        app.recompute_displayed_thoughts();
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("Filter: Sarah"));
+        assert!(output.contains("Esc to clear"));
+    }
+
+    #[test]
+    fn test_render_filtered_title() {
+        let thoughts = vec![make_thought("[Sarah] hello", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.active_filter = Some("Sarah".to_string());
+        app.recompute_displayed_thoughts();
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("filtered: Sarah"));
+    }
+
+    #[test]
+    fn test_render_descending_sort_label() {
+        let mut app = App::new(vec![], vec![]);
+        app.sort_order.toggle();
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("Sort: Newest first"));
+    }
+
+    #[test]
+    fn test_render_entity_picker_overlay() {
+        let entities = vec![make_entity("Sarah", None), make_entity("Project", None)];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityPicker {
+            input: tui_input::Input::default(),
+            matches: vec![0, 1],
+            selected: 0,
+        };
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("Filter by Entity"));
+        assert!(output.contains("Sarah"));
+        assert!(output.contains("Project"));
+        assert!(output.contains("2 matches"));
+    }
+
+    #[test]
+    fn test_render_entity_detail_with_description() {
+        let entities = vec![make_entity("Sarah", Some("A colleague from work"))];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityDetail {
+            entity_indices: vec![0],
+            scroll_offset: 0,
+        };
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("Entity Details"));
+        assert!(output.contains("Sarah"));
+        assert!(output.contains("A colleague from work"));
+    }
+
+    #[test]
+    fn test_render_entity_detail_without_description() {
+        let entities = vec![make_entity("Sarah", None)];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityDetail {
+            entity_indices: vec![0],
+            scroll_offset: 0,
+        };
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("No description available"));
+    }
+
+    #[test]
+    fn test_render_entity_detail_multiple_entities() {
+        let entities = vec![
+            make_entity("Sarah", Some("A person")),
+            make_entity("Project", Some("A big project")),
+        ];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityDetail {
+            entity_indices: vec![0, 1],
+            scroll_offset: 0,
+        };
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("Sarah"));
+        assert!(output.contains("A person"));
+        assert!(output.contains("Project"));
+        assert!(output.contains("A big project"));
+    }
+
+    #[test]
+    fn test_render_multiple_thoughts() {
+        let thoughts = vec![
+            make_thought("First thought", 2),
+            make_thought("Second thought", 1),
+            make_thought("Third thought", 0),
+        ];
+        let app = App::new(thoughts, vec![]);
+        let output = render_to_string(&app, 80, 10);
+        assert!(output.contains("First thought"));
+        assert!(output.contains("Second thought"));
+        assert!(output.contains("Third thought"));
+    }
+
+    #[test]
+    fn test_render_thought_shows_date() {
+        let thoughts = vec![make_thought("dated thought", 0)];
+        let app = App::new(thoughts, vec![]);
+        let output = render_to_string(&app, 80, 10);
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        assert!(output.contains(&today));
+    }
+
+    #[test]
+    fn test_centered_rect_produces_smaller_rect() {
+        let area = Rect::new(0, 0, 100, 50);
+        let result = centered_rect(60, 70, area);
+        assert!(result.width < area.width);
+        assert!(result.height < area.height);
+        assert!(result.x > 0);
+        assert!(result.y > 0);
+    }
+
+    #[test]
+    fn test_render_entity_detail_with_scroll() {
+        let long_desc = (0..20).map(|i| format!("Paragraph {}", i)).collect::<Vec<_>>().join("\n\n");
+        let entities = vec![make_entity("Sarah", Some(&long_desc))];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityDetail {
+            entity_indices: vec![0],
+            scroll_offset: 5,
+        };
+        // Should not panic with scroll offset
+        let _output = render_to_string(&app, 80, 24);
+    }
+
+    #[test]
+    fn test_render_entity_picker_with_selected_highlight() {
+        let entities = vec![
+            make_entity("Alpha", None),
+            make_entity("Beta", None),
+            make_entity("Gamma", None),
+        ];
+        let mut app = App::new(vec![], entities);
+        app.mode = Mode::EntityPicker {
+            input: tui_input::Input::default(),
+            matches: vec![0, 1, 2],
+            selected: 1,
+        };
+        // Should render without panic; the selected item gets REVERSED style
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("Alpha"));
+        assert!(output.contains("Beta"));
+        assert!(output.contains("Gamma"));
+        assert!(output.contains("3 matches"));
     }
 }
