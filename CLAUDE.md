@@ -35,6 +35,8 @@ Wetware is a Rust project that helps track "thoughts" - brief snippets of inform
 - Entity descriptions stored in `entities.description` column (NULL for entities without descriptions)
 - Rust 2024 edition + clap 4.5 (CLI), rusqlite 0.38 (SQLite), chrono 0.4 (date parsing), tempfile 3.25 (editor temp file), regex 1.12 (entity parsing), thiserror 2.0 (error types) (004-edit-thoughts)
 - SQLite at `~/.local/share/wetware/thoughts.db` (or `WETWARE_DB` env var). Schema unchanged — thoughts.id already exists and is surfaced in listing output. (004-edit-thoughts)
+- Rust 2024 edition + ratatui (TUI framework), crossterm (terminal backend/events), tui-input (text input widget), nucleo-matcher (fuzzy matching) (005-tui-viewer)
+- SQLite via rusqlite (existing, read-only access) (005-tui-viewer)
 
 ## Recent Changes
 - 001-entity-descriptions: Added entity description feature with three input methods (inline, file, interactive editor). Entities can have multi-paragraph descriptions. The `wet entities` command displays ellipsized previews when terminal width >= 60 characters. Descriptions support entity references `[entity]` and `[alias](target)`. Added `wet entity edit` command for managing descriptions.

@@ -4,6 +4,7 @@ pub mod edit;
 pub mod entities;
 pub mod entity_edit;
 pub mod thoughts;
+pub mod tui;
 
 use crate::services::color_mode::ColorMode;
 use clap::{Parser, Subcommand};
@@ -46,6 +47,8 @@ pub enum Commands {
         #[arg(long, conflicts_with = "content")]
         editor: bool,
     },
+    /// Launch interactive TUI thought viewer
+    Tui,
     /// List all entities
     Entities,
     /// Entity operations
