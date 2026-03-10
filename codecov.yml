@@ -23,6 +23,7 @@ coverage:
 
 ignore:
   - "src/main.rs"  # Ignore the main.rs file as it's mainly CLI glue code
+  - "src/cli/tui.rs"  # Terminal init/restore glue code
 
 comment:
   layout: "reach,diff,flags,files,footer"

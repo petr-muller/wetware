@@ -11,6 +11,7 @@ fn main() {
     let db_path = env::var("WETWARE_DB").ok().map(PathBuf::from);
 
     let result = match cli.command {
+        Commands::Tui => wetware::cli::tui::execute(db_path.as_deref()),
         Commands::Add { content } => wetware::cli::add::execute(content, db_path.as_deref()),
         Commands::Edit {
             id,

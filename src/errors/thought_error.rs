@@ -29,6 +29,9 @@ pub enum ThoughtError {
 
     #[error("File I/O error: {0}")]
     FileError(#[from] std::io::Error),
+
+    #[error("TUI error: {0}")]
+    TuiError(String),
 }
 
 #[cfg(test)]
