@@ -19,7 +19,7 @@ owo-colors = { version = "4", features = ["supports-colors"] }
 terminal_size = "0.4"
 tempfile = "3.27"
 ratatui = "0.29"
-tui-input = "0.11"
+tui-input = "0.14"
 nucleo-matcher = "0.3"
 
 [dev-dependencies]
