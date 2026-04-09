@@ -46,12 +46,15 @@ Domain model must not depend on CLI or persistence. Persistence is behind reposi
 
 - clap 4.6 (CLI), rusqlite 0.39 (SQLite), chrono 0.4 (dates), regex 1.12 (entity parsing)
 - thiserror 2.0 (error types), owo-colors 4 (terminal styling), terminal_size 0.4 (TTY detection)
-- tempfile 3.27 (editor temp files)
+- tempfile 3.27 (editor temp files), dirs 6.0 (XDG data directory), serde 1 + toml 0.8 (config)
 - ratatui 0.30 + crossterm (TUI framework), tui-input 0.15 (text input), nucleo-matcher 0.3 (fuzzy search)
 
-## Database
+## Data Directory
 
-- SQLite at `~/.local/share/wetware/thoughts.db` (or `WETWARE_DB` env var)
+- Data directory at `~/.local/share/wetware/` (XDG data dir), overridable via `WETWARE_DATA_DIR` env var
+- Contains `config.toml` (TOML config) and `default.db` (SQLite database)
+- Database path overridable via `WETWARE_DB` env var (takes precedence over data dir for db)
+- **Debug builds panic if `WETWARE_DATA_DIR` is not set** — prevents dev/test from touching production data
 - Tables: `thoughts`, `entities` (with `description` column), `thought_entities` (junction)
 - Migrations in `src/storage/migrations/`
 

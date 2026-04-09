@@ -1,5 +1,6 @@
 /// Wetware - Personal networked note-taking system
 pub mod cli;
+pub mod config;
 pub mod errors;
 pub mod input;
 pub mod models;

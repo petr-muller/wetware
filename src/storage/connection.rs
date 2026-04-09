@@ -1,19 +1,13 @@
 /// Database connection management
 use crate::errors::ThoughtError;
 use rusqlite::Connection;
-use std::path::{Path, PathBuf};
-
-/// Get the default database path
-pub fn default_db_path() -> PathBuf {
-    PathBuf::from("wetware.db")
-}
+use std::path::Path;
 
 /// Get a database connection
 ///
-/// Creates the database file if it doesn't exist.
+/// A database path must be provided. Creates the database file if it doesn't exist.
 pub fn get_connection(db_path: Option<&Path>) -> Result<Connection, ThoughtError> {
-    let default_path = default_db_path();
-    let path = db_path.unwrap_or(&default_path);
+    let path = db_path.expect("database path must be provided — use resolve_data_dir() to determine it");
     let conn = Connection::open(path)?;
 
     // Enable foreign key constraints
