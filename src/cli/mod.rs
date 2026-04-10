@@ -27,6 +27,9 @@ pub enum Commands {
     Add {
         /// Thought content
         content: String,
+        /// Date for the thought in YYYY-MM-DD format (defaults to today)
+        #[arg(long)]
+        date: Option<String>,
     },
     /// List all thoughts
     Thoughts {

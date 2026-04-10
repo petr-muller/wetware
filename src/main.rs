@@ -12,7 +12,7 @@ fn main() {
 
     let result = match cli.command {
         Commands::Tui => wetware::cli::tui::execute(db_path.as_deref()),
-        Commands::Add { content } => wetware::cli::add::execute(content, db_path.as_deref()),
+        Commands::Add { content, date } => wetware::cli::add::execute(content, date, db_path.as_deref()),
         Commands::Edit {
             id,
             content,
