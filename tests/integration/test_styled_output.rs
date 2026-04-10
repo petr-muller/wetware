@@ -9,10 +9,10 @@ fn test_styled_output_with_color_always() {
     let db_path = temp_dir.path().join("test.db");
 
     // Add thought with entity
-    add::execute("Meeting with [Sarah]".to_string(), None, Some(&db_path)).unwrap();
+    add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with colors always on (even though we're not in a TTY)
-    let result = thoughts::execute(Some(&db_path), None, ColorMode::Always);
+    let result = thoughts::execute(&db_path, None, ColorMode::Always);
     assert!(result.is_ok());
 }
 
@@ -22,10 +22,10 @@ fn test_styled_output_with_color_never() {
     let db_path = temp_dir.path().join("test.db");
 
     // Add thought with entity
-    add::execute("Meeting with [Sarah]".to_string(), None, Some(&db_path)).unwrap();
+    add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with colors disabled
-    let result = thoughts::execute(Some(&db_path), None, ColorMode::Never);
+    let result = thoughts::execute(&db_path, None, ColorMode::Never);
     assert!(result.is_ok());
 }
 
@@ -35,10 +35,10 @@ fn test_styled_output_with_color_auto() {
     let db_path = temp_dir.path().join("test.db");
 
     // Add thought with entity
-    add::execute("Meeting with [Sarah]".to_string(), None, Some(&db_path)).unwrap();
+    add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with auto-detection (will be plain since tests aren't TTY)
-    let result = thoughts::execute(Some(&db_path), None, ColorMode::Auto);
+    let result = thoughts::execute(&db_path, None, ColorMode::Auto);
     assert!(result.is_ok());
 }
 

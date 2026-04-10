@@ -27,7 +27,7 @@ pub fn execute(
     content: Option<String>,
     date: Option<String>,
     use_editor: bool,
-    db_path: Option<&Path>,
+    db_path: &Path,
 ) -> Result<(), ThoughtError> {
     // Validate at least one edit argument was provided
     if content.is_none() && date.is_none() && !use_editor {

@@ -1,20 +1,13 @@
 /// Database connection management
 use crate::errors::ThoughtError;
 use rusqlite::Connection;
-use std::path::{Path, PathBuf};
-
-/// Get the default database path
-pub fn default_db_path() -> PathBuf {
-    PathBuf::from("wetware.db")
-}
+use std::path::Path;
 
 /// Get a database connection
 ///
 /// Creates the database file if it doesn't exist.
-pub fn get_connection(db_path: Option<&Path>) -> Result<Connection, ThoughtError> {
-    let default_path = default_db_path();
-    let path = db_path.unwrap_or(&default_path);
-    let conn = Connection::open(path)?;
+pub fn get_connection(db_path: &Path) -> Result<Connection, ThoughtError> {
+    let conn = Connection::open(db_path)?;
 
     // Enable foreign key constraints
     conn.execute("PRAGMA foreign_keys = ON", [])?;
@@ -49,7 +42,7 @@ mod tests {
 
         assert!(!db_path.exists());
 
-        let _conn = get_connection(Some(&db_path)).unwrap();
+        let _conn = get_connection(&db_path).unwrap();
 
         assert!(db_path.exists());
     }
@@ -58,7 +51,7 @@ mod tests {
     fn test_get_connection_foreign_keys_enabled() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let conn = get_connection(Some(&db_path)).unwrap();
+        let conn = get_connection(&db_path).unwrap();
 
         let fk_enabled: i32 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0)).unwrap();
         assert_eq!(fk_enabled, 1);

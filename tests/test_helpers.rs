@@ -29,10 +29,11 @@ pub fn run_wet_command(args: &[&str], db_dir: Option<&TempDir>) -> CommandResult
     // Run the built binary directly
     let mut cmd = Command::new("target/debug/wet");
 
-    // Add database path if temp dir provided
+    // Add database and data directory paths if temp dir provided
     if let Some(dir) = db_dir {
         let db_path = dir.path().join("test.db");
         cmd.env("WETWARE_DB", db_path.to_str().unwrap());
+        cmd.env("WETWARE_DATA_DIR", dir.path().to_str().unwrap());
     }
 
     for arg in args {

@@ -47,3 +47,4 @@ Thumbs.db
 *.profdata
 tarpaulin-report.html
 cobertura.xml
+lcov.info
