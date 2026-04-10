@@ -17,7 +17,7 @@ pub fn resolve_data_dir(override_path: Option<&Path>) -> Result<PathBuf, Thought
     {
         panic!(
             "debug builds require an explicit data directory override \
-             (set WETWARE_DATA_DIR or pass --data-dir). \
+             (set WETWARE_DATA_DIR). \
              This prevents accidentally touching production data."
         );
     }
@@ -58,10 +58,18 @@ mod tests {
         assert_eq!(result, temp.path());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "debug builds require an explicit data directory override")]
     fn test_resolve_data_dir_panics_in_debug_without_override() {
         let _ = resolve_data_dir(None);
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn test_resolve_data_dir_without_override_does_not_panic_in_release() {
+        let result = std::panic::catch_unwind(|| resolve_data_dir(None));
+        assert!(result.is_ok());
     }
 
     #[test]

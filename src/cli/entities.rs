@@ -30,7 +30,7 @@ use std::path::Path;
 /// entity-name
 /// entity-without-description
 /// ```
-pub fn execute(db_path: Option<&Path>) -> Result<(), ThoughtError> {
+pub fn execute(db_path: &Path) -> Result<(), ThoughtError> {
     // Get database connection
     let conn = get_connection(db_path)?;
 

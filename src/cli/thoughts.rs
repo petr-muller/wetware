@@ -14,7 +14,7 @@ use std::path::Path;
 /// * `db_path` - Optional path to the database file
 /// * `entity_filter` - Optional entity name to filter thoughts by
 /// * `color_mode` - Controls whether output should be styled with colors
-pub fn execute(db_path: Option<&Path>, entity_filter: Option<&str>, color_mode: ColorMode) -> Result<(), ThoughtError> {
+pub fn execute(db_path: &Path, entity_filter: Option<&str>, color_mode: ColorMode) -> Result<(), ThoughtError> {
     // Get database connection
     let conn = get_connection(db_path)?;
 

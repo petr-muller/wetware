@@ -10,7 +10,10 @@ fn main() {
     let cli = Cli::parse();
 
     // Resolve data directory: WETWARE_DATA_DIR env var > XDG default (release only)
-    let data_dir_override = env::var("WETWARE_DATA_DIR").ok().map(PathBuf::from);
+    let data_dir_override = env::var("WETWARE_DATA_DIR")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from);
     let data_dir = match resolve_data_dir(data_dir_override.as_deref()) {
         Ok(dir) => dir,
         Err(e) => {
@@ -32,27 +35,27 @@ fn main() {
     // Database path: WETWARE_DB env var > <data_dir>/default.db
     let db_path = env::var("WETWARE_DB")
         .ok()
+        .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| default_db_path_in(&data_dir));
-    let db_path = Some(db_path);
 
     let result = match cli.command {
-        Commands::Tui => wetware::cli::tui::execute(db_path.as_deref()),
-        Commands::Add { content, date } => wetware::cli::add::execute(content, date, db_path.as_deref()),
+        Commands::Tui => wetware::cli::tui::execute(&db_path),
+        Commands::Add { content, date } => wetware::cli::add::execute(content, date, &db_path),
         Commands::Edit {
             id,
             content,
             date,
             editor,
-        } => wetware::cli::edit::execute(id, content, date, editor, db_path.as_deref()),
-        Commands::Thoughts { on } => wetware::cli::thoughts::execute(db_path.as_deref(), on.as_deref(), cli.color),
-        Commands::Entities => wetware::cli::entities::execute(db_path.as_deref()),
+        } => wetware::cli::edit::execute(id, content, date, editor, &db_path),
+        Commands::Thoughts { on } => wetware::cli::thoughts::execute(&db_path, on.as_deref(), cli.color),
+        Commands::Entities => wetware::cli::entities::execute(&db_path),
         Commands::Entity { command } => match command {
             EntityCommands::Edit {
                 entity_name,
                 description,
                 description_file,
-            } => wetware::cli::entity_edit::execute(&entity_name, description, description_file, db_path.as_deref()),
+            } => wetware::cli::entity_edit::execute(&entity_name, description, description_file, &db_path),
         },
     };
 

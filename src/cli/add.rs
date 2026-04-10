@@ -11,7 +11,7 @@ use chrono::NaiveDate;
 use std::path::Path;
 
 /// Execute the add command
-pub fn execute(content: String, date: Option<String>, db_path: Option<&Path>) -> Result<(), ThoughtError> {
+pub fn execute(content: String, date: Option<String>, db_path: &Path) -> Result<(), ThoughtError> {
     // Create and validate thought
     let thought = if let Some(ref date_str) = date {
         let naive = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {

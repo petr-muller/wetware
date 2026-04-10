@@ -15,7 +15,7 @@ use crate::tui::App;
 ///
 /// Opens the database, loads all thoughts and entities, initializes a full-screen
 /// terminal, and runs the TUI event loop. Terminal state is restored on exit.
-pub fn execute(db_path: Option<&Path>) -> Result<(), ThoughtError> {
+pub fn execute(db_path: &Path) -> Result<(), ThoughtError> {
     let conn = get_connection(db_path)?;
     let thoughts = ThoughtsRepository::list_all(&conn)?;
     let entities = EntitiesRepository::list_all(&conn)?;

@@ -93,12 +93,12 @@ fn test_add_command_extracts_entities() {
     let result = add::execute(
         "Discussed [project-alpha] with [Sarah] and [John]".to_string(),
         None,
-        Some(&db_path),
+        &db_path,
     );
     assert!(result.is_ok());
 
     // Verify entities were extracted and saved
-    let conn = wetware::storage::connection::get_connection(Some(&db_path)).unwrap();
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
     let entities = EntitiesRepository::list_all(&conn).unwrap();
 
     assert_eq!(entities.len(), 3);
@@ -114,11 +114,11 @@ fn test_add_command_no_entities() {
     let db_path = temp_dir.path().join("test.db");
 
     // Add a thought without entities
-    let result = add::execute("Regular thought without entities".to_string(), None, Some(&db_path));
+    let result = add::execute("Regular thought without entities".to_string(), None, &db_path);
     assert!(result.is_ok());
 
     // Verify no entities were created
-    let conn = wetware::storage::connection::get_connection(Some(&db_path)).unwrap();
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
     let entities = EntitiesRepository::list_all(&conn).unwrap();
     assert_eq!(entities.len(), 0);
 }

@@ -29,7 +29,7 @@ pub fn execute(
     entity_name: &str,
     description: Option<String>,
     description_file: Option<PathBuf>,
-    db_path: Option<&Path>,
+    db_path: &Path,
 ) -> Result<(), ThoughtError> {
     // T031: Check mutual exclusivity of input methods (both flags cannot be used together)
     if description.is_some() && description_file.is_some() {
