@@ -59,3 +59,29 @@ fn test_add_command_whitespace_only() {
         result.stderr
     );
 }
+
+#[test]
+fn test_add_command_with_date() {
+    let temp_db = setup_temp_db();
+    let result = run_wet_command(&["add", "Backdated thought", "--date", "2024-03-15"], Some(&temp_db));
+
+    assert_eq!(result.status, 0, "Command should succeed with valid date");
+    assert!(
+        result.stdout.contains("Thought added"),
+        "Should confirm thought was added. Got: {}",
+        result.stdout
+    );
+}
+
+#[test]
+fn test_add_command_with_invalid_date() {
+    let temp_db = setup_temp_db();
+    let result = run_wet_command(&["add", "Bad date thought", "--date", "not-a-date"], Some(&temp_db));
+
+    assert_ne!(result.status, 0, "Command should fail with invalid date");
+    assert!(
+        result.stderr.contains("Invalid date format"),
+        "Should report invalid date error. Got: {}",
+        result.stderr
+    );
+}

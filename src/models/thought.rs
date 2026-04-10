@@ -20,6 +20,16 @@ impl Thought {
         })
     }
 
+    /// Create a new thought with a specific date
+    pub fn new_with_date(content: String, created_at: DateTime<Utc>) -> Result<Self, ThoughtError> {
+        Self::validate_content(&content)?;
+        Ok(Self {
+            id: None,
+            content,
+            created_at,
+        })
+    }
+
     /// Validate thought content
     fn validate_content(content: &str) -> Result<(), ThoughtError> {
         let trimmed = content.trim();
@@ -77,6 +87,25 @@ mod tests {
         let max_content = "a".repeat(10_000);
         let thought = Thought::new(max_content).unwrap();
         assert_eq!(thought.content.len(), 10_000);
+    }
+
+    #[test]
+    fn test_new_with_date() {
+        let date = chrono::NaiveDate::from_ymd_opt(2024, 3, 15)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
+        let thought = Thought::new_with_date("Backdated thought".to_string(), date).unwrap();
+        assert_eq!(thought.content, "Backdated thought");
+        assert_eq!(thought.created_at, date);
+    }
+
+    #[test]
+    fn test_new_with_date_validates_content() {
+        let date = Utc::now();
+        let result = Thought::new_with_date("".to_string(), date);
+        assert!(matches!(result, Err(ThoughtError::EmptyContent)));
     }
 
     #[test]

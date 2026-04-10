@@ -7,12 +7,21 @@ use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
+use chrono::NaiveDate;
 use std::path::Path;
 
 /// Execute the add command
-pub fn execute(content: String, db_path: Option<&Path>) -> Result<(), ThoughtError> {
+pub fn execute(content: String, date: Option<String>, db_path: Option<&Path>) -> Result<(), ThoughtError> {
     // Create and validate thought
-    let thought = Thought::new(content.clone())?;
+    let thought = if let Some(ref date_str) = date {
+        let naive = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
+            ThoughtError::InvalidInput(format!("Invalid date format '{}'. Expected YYYY-MM-DD.", date_str))
+        })?;
+        let datetime = naive.and_hms_opt(0, 0, 0).unwrap().and_utc();
+        Thought::new_with_date(content.clone(), datetime)?
+    } else {
+        Thought::new(content.clone())?
+    };
 
     // Get database connection
     let conn = get_connection(db_path)?;

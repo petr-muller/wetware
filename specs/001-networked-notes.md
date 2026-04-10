@@ -7,6 +7,7 @@ Foundational feature: capture short notes via CLI that can reference named entit
 ## Requirements
 
 - `wet add '<text>'` saves a note with optional entity references parsed from `[entity-name]` syntax
+- `wet add '<text>' --date YYYY-MM-DD` saves a note with a specific date instead of today
 - `wet thoughts` lists all notes in chronological order (oldest first)
 - `wet thoughts --on <entity>` filters notes by entity reference (case-insensitive)
 - `wet entities` lists all unique entities alphabetically
@@ -54,6 +55,7 @@ Indexes on `thought_entities(entity_id)` and `thought_entities(thought_id)` for 
 
 ```
 wet add '<text>'                 # Add a note (entities auto-extracted)
+wet add '<text>' --date 2024-03-15  # Add a note with a specific date
 wet thoughts                     # List all notes chronologically
 wet thoughts --on <entity>       # Filter notes by entity (case-insensitive)
 wet entities                     # List all unique entities alphabetically
@@ -69,3 +71,4 @@ Output format: `[<id>] <timestamp> - <content>`
 - Nested brackets `[entity[sub]]` are not supported (regex doesn't match)
 - Querying a non-existent entity returns empty results with a helpful message
 - Duplicate entity references in a single note are deduplicated
+- Invalid `--date` format (not YYYY-MM-DD) is rejected with a helpful error message

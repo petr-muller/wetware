@@ -70,6 +70,26 @@ fn test_list_notes_chronological_order() -> Result<(), ThoughtError> {
 }
 
 #[test]
+fn test_save_and_retrieve_with_custom_date() -> Result<(), ThoughtError> {
+    let conn = get_memory_connection()?;
+    run_migrations(&conn)?;
+
+    let date = chrono::NaiveDate::from_ymd_opt(2024, 3, 15)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
+    let thought = Thought::new_with_date("Backdated thought".to_string(), date)?;
+    let saved_id = ThoughtsRepository::save(&conn, &thought)?;
+
+    let retrieved = ThoughtsRepository::get_by_id(&conn, saved_id)?;
+    assert_eq!(retrieved.content, "Backdated thought");
+    assert_eq!(retrieved.created_at, date);
+
+    Ok(())
+}
+
+#[test]
 fn test_empty_database_returns_empty_list() -> Result<(), ThoughtError> {
     let conn = get_memory_connection()?;
     run_migrations(&conn)?;
