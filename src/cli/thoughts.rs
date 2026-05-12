@@ -44,7 +44,7 @@ pub fn execute(db_path: &Path, entity_filter: Option<&str>, color_mode: ColorMod
             println!(
                 "[{}] {} - {}",
                 thought.id.unwrap_or(0),
-                thought.created_at.format("%Y-%m-%d %H:%M:%S"),
+                thought.created_at.format("%Y-%m-%d"),
                 styled_content
             );
         }
