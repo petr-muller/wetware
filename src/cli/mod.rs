@@ -1,5 +1,6 @@
 /// CLI module for command-line interface
 pub mod add;
+pub mod delete;
 pub mod edit;
 pub mod entities;
 pub mod entity_edit;
@@ -49,6 +50,11 @@ pub enum Commands {
         /// Open the thought in an interactive editor (mutually exclusive with CONTENT)
         #[arg(long, conflicts_with = "content")]
         editor: bool,
+    },
+    /// Delete a thought by ID
+    Delete {
+        /// ID of the thought to delete (visible in `wet` listing output as [id])
+        id: i64,
     },
     /// Launch interactive TUI thought viewer
     Tui,

@@ -24,7 +24,9 @@ pub fn execute(db_path: &Path) -> Result<(), ThoughtError> {
     let mut terminal = ratatui::init();
 
     // Run the app, capturing any error to ensure terminal cleanup
-    let result = App::new(thoughts, entities).run(&mut terminal);
+    let result = App::new(thoughts, entities)
+        .with_db_path(db_path.to_path_buf())
+        .run(&mut terminal);
 
     // Always restore terminal, even if app errored
     ratatui::restore();

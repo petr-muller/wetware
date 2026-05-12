@@ -155,6 +155,7 @@ pub fn render(app: &App, frame: &mut Frame) {
 
     // Render overlays on top
     match &app.mode {
+        Mode::ConfirmDelete { .. } => render_confirm_delete(app, frame, area),
         Mode::EntityPicker { .. } => render_entity_picker(app, frame, area),
         Mode::EntityDetail { .. } => render_entity_detail(app, frame, area),
         Mode::Normal => {}
@@ -213,7 +214,7 @@ fn render_thought_list(app: &App, frame: &mut Frame, area: Rect) {
 /// Render the status bar with sort order, active filter, and key hints.
 fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
     let sort_label = format!("Sort: {}", app.sort_order.label());
-    let hints = "q:Quit  /:Filter  s:Sort  Enter:Details  ?:Help";
+    let hints = "q:Quit  /:Filter  s:Sort  x:Delete  Enter:Details  ?:Help";
 
     let mut spans = vec![
         Span::styled(format!(" {} ", sort_label), Style::default().fg(Color::Cyan)),
@@ -232,6 +233,50 @@ fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
 
     let status = Line::from(spans);
     frame.render_widget(Paragraph::new(status), area);
+}
+
+/// Render the delete confirmation overlay.
+fn render_confirm_delete(app: &App, frame: &mut Frame, area: Rect) {
+    let Mode::ConfirmDelete { thought_index } = app.mode else {
+        return;
+    };
+
+    let thought = &app.thoughts[thought_index];
+    let date_str = thought.created_at.format("%Y-%m-%d %H:%M").to_string();
+
+    let popup_area = centered_rect(60, 30, area);
+    frame.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Delete Thought")
+        .border_style(Style::default().fg(Color::Red));
+
+    let inner = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+
+    let content_max = inner.width.saturating_sub(2) as usize;
+    let truncated = if thought.content.len() > content_max {
+        format!("{}...", &thought.content[..content_max.saturating_sub(3)])
+    } else {
+        thought.content.clone()
+    };
+
+    let lines = vec![
+        Line::raw(""),
+        Line::from(vec![
+            Span::styled(date_str, Style::default().fg(Color::DarkGray)),
+            Span::raw(" "),
+            Span::raw(truncated),
+        ]),
+        Line::raw(""),
+        Line::from(Span::styled(
+            "Delete this thought? y/n",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )),
+    ];
+
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
 }
 
 /// Render the fuzzy entity picker overlay.
@@ -400,9 +445,7 @@ mod tests {
     fn render_to_string(app: &App, width: u16, height: u16) -> String {
         let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|frame| render(app, frame))
-            .unwrap();
+        terminal.draw(|frame| render(app, frame)).unwrap();
         let buffer = terminal.backend().buffer().clone();
         let mut output = String::new();
         for y in 0..buffer.area.height {
@@ -640,7 +683,10 @@ mod tests {
 
     #[test]
     fn test_render_entity_detail_with_scroll() {
-        let long_desc = (0..20).map(|i| format!("Paragraph {}", i)).collect::<Vec<_>>().join("\n\n");
+        let long_desc = (0..20)
+            .map(|i| format!("Paragraph {}", i))
+            .collect::<Vec<_>>()
+            .join("\n\n");
         let entities = vec![make_entity("Sarah", Some(&long_desc))];
         let mut app = App::new(vec![], entities);
         app.mode = Mode::EntityDetail {
@@ -649,6 +695,17 @@ mod tests {
         };
         // Should not panic with scroll offset
         let _output = render_to_string(&app, 80, 24);
+    }
+
+    #[test]
+    fn test_render_confirm_delete_overlay() {
+        let thoughts = vec![make_thought("Meeting with team", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+        let output = render_to_string(&app, 80, 24);
+        assert!(output.contains("Delete Thought"));
+        assert!(output.contains("Delete this thought? y/n"));
+        assert!(output.contains("Meeting with team"));
     }
 
     #[test]

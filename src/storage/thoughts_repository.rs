@@ -87,6 +87,20 @@ impl ThoughtsRepository {
         Ok(())
     }
 
+    /// Delete a thought by ID
+    ///
+    /// Returns `ThoughtNotFound` if no thought with the given ID exists.
+    /// Associated `thought_entities` rows are removed by ON DELETE CASCADE.
+    pub fn delete(conn: &Connection, id: i64) -> Result<(), ThoughtError> {
+        let rows_changed = conn.execute("DELETE FROM thoughts WHERE id = ?1", [id])?;
+
+        if rows_changed == 0 {
+            return Err(ThoughtError::ThoughtNotFound(id));
+        }
+
+        Ok(())
+    }
+
     /// List thoughts filtered by entity name (case-insensitive)
     pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Thought>, ThoughtError> {
         let lowercase_name = entity_name.to_lowercase();
@@ -214,6 +228,58 @@ mod tests {
             result,
             Err(crate::errors::ThoughtError::ThoughtNotFound(9999))
         ));
+    }
+
+    #[test]
+    fn test_delete_thought() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thought = Thought::new("To be deleted".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+
+        ThoughtsRepository::delete(&conn, id).unwrap();
+
+        let result = ThoughtsRepository::get_by_id(&conn, id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_thought_nonexistent_id() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = ThoughtsRepository::delete(&conn, 9999);
+        assert!(matches!(
+            result,
+            Err(crate::errors::ThoughtError::ThoughtNotFound(9999))
+        ));
+    }
+
+    #[test]
+    fn test_delete_thought_cascades_to_entity_associations() {
+        use crate::models::entity::Entity;
+        use crate::storage::entities_repository::EntitiesRepository;
+
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thought = Thought::new("Meeting with [Sarah]".to_string()).unwrap();
+        let thought_id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        let entity = Entity::new("Sarah".to_string());
+        let entity_id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+        EntitiesRepository::link_to_thought(&conn, entity_id, thought_id).unwrap();
+
+        ThoughtsRepository::delete(&conn, thought_id).unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM thought_entities WHERE thought_id = ?1",
+                [thought_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]

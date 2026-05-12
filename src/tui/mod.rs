@@ -7,12 +7,17 @@ pub mod input;
 pub mod state;
 pub mod ui;
 
+use std::path::PathBuf;
+
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use crate::errors::ThoughtError;
 use crate::models::{Entity, Thought};
 use crate::services::entity_parser;
+use crate::storage::connection::get_connection;
+use crate::storage::migrations::run_migrations;
+use crate::storage::thoughts_repository::ThoughtsRepository;
 
 use state::{Mode, SortOrder};
 
@@ -37,6 +42,8 @@ pub struct App {
     pub active_filter: Option<String>,
     /// Exit flag
     pub should_quit: bool,
+    /// Path to the database for mutation operations
+    pub db_path: Option<PathBuf>,
 }
 
 impl App {
@@ -54,12 +61,48 @@ impl App {
             sort_order: SortOrder::Ascending,
             active_filter: None,
             should_quit: false,
+            db_path: None,
         };
         app.recompute_displayed_thoughts();
         if !app.displayed_thoughts.is_empty() {
             app.list_state.select(Some(0));
         }
         app
+    }
+
+    /// Set the database path for mutation operations (delete).
+    pub fn with_db_path(mut self, db_path: PathBuf) -> Self {
+        self.db_path = Some(db_path);
+        self
+    }
+
+    /// Delete the thought currently pending confirmation.
+    ///
+    /// Must be called while in `ConfirmDelete` mode. Opens a database connection,
+    /// deletes the thought, removes it from in-memory state, and returns to Normal mode.
+    pub fn delete_selected_thought(&mut self) -> Result<(), ThoughtError> {
+        let Mode::ConfirmDelete { thought_index } = self.mode else {
+            return Ok(());
+        };
+
+        let thought_id = self.thoughts[thought_index]
+            .id
+            .ok_or(ThoughtError::InvalidInput("Thought has no ID".into()))?;
+
+        let db_path = self
+            .db_path
+            .as_ref()
+            .ok_or(ThoughtError::InvalidInput("No database path configured".into()))?;
+
+        let conn = get_connection(db_path)?;
+        run_migrations(&conn)?;
+        ThoughtsRepository::delete(&conn, thought_id)?;
+
+        self.thoughts.remove(thought_index);
+        self.mode = Mode::Normal;
+        self.recompute_displayed_thoughts();
+
+        Ok(())
     }
 
     /// Recompute the displayed thoughts based on current filter and sort order.
@@ -287,5 +330,111 @@ mod tests {
         assert!(!app.should_quit);
         app.should_quit = true;
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn test_with_db_path() {
+        let app = App::new(vec![], vec![]).with_db_path(std::path::PathBuf::from("/tmp/test.db"));
+        assert_eq!(app.db_path, Some(std::path::PathBuf::from("/tmp/test.db")));
+    }
+
+    #[test]
+    fn test_new_has_no_db_path() {
+        let app = App::new(vec![], vec![]);
+        assert!(app.db_path.is_none());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_not_in_confirm_mode() {
+        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        // Not in ConfirmDelete mode — should be a no-op
+        let result = app.delete_selected_thought();
+        assert!(result.is_ok());
+        assert_eq!(app.thoughts.len(), 1);
+    }
+
+    #[test]
+    fn test_delete_selected_thought_no_db_path() {
+        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+        let result = app.delete_selected_thought();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_success() {
+        use crate::storage::connection::get_connection;
+        use crate::storage::migrations::run_migrations;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        // Set up DB with a thought
+        let conn = get_connection(&db_path).unwrap();
+        run_migrations(&conn).unwrap();
+        let thought = Thought::new("to delete".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        drop(conn);
+
+        // Load thoughts with the saved ID
+        let thought_with_id = Thought {
+            id: Some(id),
+            content: "to delete".to_string(),
+            created_at: thought.created_at,
+        };
+
+        let mut app = App::new(vec![thought_with_id], vec![]).with_db_path(db_path.clone());
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        let result = app.delete_selected_thought();
+        assert!(result.is_ok());
+        assert!(app.thoughts.is_empty());
+        assert!(matches!(app.mode, Mode::Normal));
+        assert_eq!(app.list_state.selected(), None);
+
+        // Verify in DB
+        let conn = get_connection(&db_path).unwrap();
+        let remaining = ThoughtsRepository::list_all(&conn).unwrap();
+        assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_adjusts_selection() {
+        use crate::storage::connection::get_connection;
+        use crate::storage::migrations::run_migrations;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let conn = get_connection(&db_path).unwrap();
+        run_migrations(&conn).unwrap();
+
+        let t1 = Thought::new("first".to_string()).unwrap();
+        let t2 = Thought::new("second".to_string()).unwrap();
+        let id1 = ThoughtsRepository::save(&conn, &t1).unwrap();
+        let id2 = ThoughtsRepository::save(&conn, &t2).unwrap();
+        drop(conn);
+
+        let thoughts = vec![
+            Thought {
+                id: Some(id1),
+                content: "first".to_string(),
+                created_at: t1.created_at,
+            },
+            Thought {
+                id: Some(id2),
+                content: "second".to_string(),
+                created_at: t2.created_at,
+            },
+        ];
+
+        let mut app = App::new(thoughts, vec![]).with_db_path(db_path);
+        app.list_state.select(Some(1));
+        // Delete the last thought (index 1 in thoughts vec)
+        app.mode = Mode::ConfirmDelete { thought_index: 1 };
+
+        app.delete_selected_thought().unwrap();
+        assert_eq!(app.thoughts.len(), 1);
+        assert_eq!(app.list_state.selected(), Some(0));
     }
 }

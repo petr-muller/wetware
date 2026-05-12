@@ -36,8 +36,8 @@ pub fn load_config(data_dir: &Path) -> Result<Config, ThoughtError> {
 /// Save configuration to the data directory.
 pub fn save_config(data_dir: &Path, config: &Config) -> Result<(), ThoughtError> {
     let config_path = data_dir.join(CONFIG_FILENAME);
-    let contents =
-        toml::to_string_pretty(config).map_err(|e| ThoughtError::InvalidInput(format!("Failed to serialize config: {e}")))?;
+    let contents = toml::to_string_pretty(config)
+        .map_err(|e| ThoughtError::InvalidInput(format!("Failed to serialize config: {e}")))?;
     std::fs::write(&config_path, contents)?;
     Ok(())
 }
