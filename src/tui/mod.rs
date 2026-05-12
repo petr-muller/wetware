@@ -331,4 +331,110 @@ mod tests {
         app.should_quit = true;
         assert!(app.should_quit);
     }
+
+    #[test]
+    fn test_with_db_path() {
+        let app = App::new(vec![], vec![]).with_db_path(std::path::PathBuf::from("/tmp/test.db"));
+        assert_eq!(app.db_path, Some(std::path::PathBuf::from("/tmp/test.db")));
+    }
+
+    #[test]
+    fn test_new_has_no_db_path() {
+        let app = App::new(vec![], vec![]);
+        assert!(app.db_path.is_none());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_not_in_confirm_mode() {
+        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        // Not in ConfirmDelete mode — should be a no-op
+        let result = app.delete_selected_thought();
+        assert!(result.is_ok());
+        assert_eq!(app.thoughts.len(), 1);
+    }
+
+    #[test]
+    fn test_delete_selected_thought_no_db_path() {
+        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+        let result = app.delete_selected_thought();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_success() {
+        use crate::storage::connection::get_connection;
+        use crate::storage::migrations::run_migrations;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        // Set up DB with a thought
+        let conn = get_connection(&db_path).unwrap();
+        run_migrations(&conn).unwrap();
+        let thought = Thought::new("to delete".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        drop(conn);
+
+        // Load thoughts with the saved ID
+        let thought_with_id = Thought {
+            id: Some(id),
+            content: "to delete".to_string(),
+            created_at: thought.created_at,
+        };
+
+        let mut app = App::new(vec![thought_with_id], vec![]).with_db_path(db_path.clone());
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        let result = app.delete_selected_thought();
+        assert!(result.is_ok());
+        assert!(app.thoughts.is_empty());
+        assert!(matches!(app.mode, Mode::Normal));
+        assert_eq!(app.list_state.selected(), None);
+
+        // Verify in DB
+        let conn = get_connection(&db_path).unwrap();
+        let remaining = ThoughtsRepository::list_all(&conn).unwrap();
+        assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn test_delete_selected_thought_adjusts_selection() {
+        use crate::storage::connection::get_connection;
+        use crate::storage::migrations::run_migrations;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let conn = get_connection(&db_path).unwrap();
+        run_migrations(&conn).unwrap();
+
+        let t1 = Thought::new("first".to_string()).unwrap();
+        let t2 = Thought::new("second".to_string()).unwrap();
+        let id1 = ThoughtsRepository::save(&conn, &t1).unwrap();
+        let id2 = ThoughtsRepository::save(&conn, &t2).unwrap();
+        drop(conn);
+
+        let thoughts = vec![
+            Thought {
+                id: Some(id1),
+                content: "first".to_string(),
+                created_at: t1.created_at,
+            },
+            Thought {
+                id: Some(id2),
+                content: "second".to_string(),
+                created_at: t2.created_at,
+            },
+        ];
+
+        let mut app = App::new(thoughts, vec![]).with_db_path(db_path);
+        app.list_state.select(Some(1));
+        // Delete the last thought (index 1 in thoughts vec)
+        app.mode = Mode::ConfirmDelete { thought_index: 1 };
+
+        app.delete_selected_thought().unwrap();
+        assert_eq!(app.thoughts.len(), 1);
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
 }

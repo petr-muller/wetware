@@ -507,6 +507,46 @@ mod tests {
     }
 
     #[test]
+    fn test_confirm_delete_y_without_db_returns_to_normal() {
+        let thoughts = vec![make_thought("to delete", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        // No db_path set, so delete will fail and fall back to Normal
+        handle_key_event(&mut app, key_event(KeyCode::Char('y')));
+        assert!(matches!(app.mode, Mode::Normal));
+    }
+
+    #[test]
+    fn test_confirm_delete_y_deletes_thought() {
+        use crate::storage::connection::get_connection;
+        use crate::storage::migrations::run_migrations;
+        use crate::storage::thoughts_repository::ThoughtsRepository;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let conn = get_connection(&db_path).unwrap();
+        run_migrations(&conn).unwrap();
+        let thought = crate::models::Thought::new("to delete".to_string()).unwrap();
+        let id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        drop(conn);
+
+        let thought_with_id = crate::models::Thought {
+            id: Some(id),
+            content: "to delete".to_string(),
+            created_at: thought.created_at,
+        };
+
+        let mut app = App::new(vec![thought_with_id], vec![]).with_db_path(db_path.clone());
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('y')));
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(app.thoughts.is_empty());
+    }
+
+    #[test]
     fn test_confirm_delete_other_keys_ignored() {
         let thoughts = vec![make_thought("to delete", 0)];
         let mut app = App::new(thoughts, vec![]);
