@@ -7,12 +7,17 @@ pub mod input;
 pub mod state;
 pub mod ui;
 
+use std::path::PathBuf;
+
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use crate::errors::ThoughtError;
 use crate::models::{Entity, Thought};
 use crate::services::entity_parser;
+use crate::storage::connection::get_connection;
+use crate::storage::migrations::run_migrations;
+use crate::storage::thoughts_repository::ThoughtsRepository;
 
 use state::{Mode, SortOrder};
 
@@ -37,6 +42,8 @@ pub struct App {
     pub active_filter: Option<String>,
     /// Exit flag
     pub should_quit: bool,
+    /// Path to the database for mutation operations
+    pub db_path: Option<PathBuf>,
 }
 
 impl App {
@@ -54,12 +61,48 @@ impl App {
             sort_order: SortOrder::Ascending,
             active_filter: None,
             should_quit: false,
+            db_path: None,
         };
         app.recompute_displayed_thoughts();
         if !app.displayed_thoughts.is_empty() {
             app.list_state.select(Some(0));
         }
         app
+    }
+
+    /// Set the database path for mutation operations (delete).
+    pub fn with_db_path(mut self, db_path: PathBuf) -> Self {
+        self.db_path = Some(db_path);
+        self
+    }
+
+    /// Delete the thought currently pending confirmation.
+    ///
+    /// Must be called while in `ConfirmDelete` mode. Opens a database connection,
+    /// deletes the thought, removes it from in-memory state, and returns to Normal mode.
+    pub fn delete_selected_thought(&mut self) -> Result<(), ThoughtError> {
+        let Mode::ConfirmDelete { thought_index } = self.mode else {
+            return Ok(());
+        };
+
+        let thought_id = self.thoughts[thought_index]
+            .id
+            .ok_or(ThoughtError::InvalidInput("Thought has no ID".into()))?;
+
+        let db_path = self
+            .db_path
+            .as_ref()
+            .ok_or(ThoughtError::InvalidInput("No database path configured".into()))?;
+
+        let conn = get_connection(db_path)?;
+        run_migrations(&conn)?;
+        ThoughtsRepository::delete(&conn, thought_id)?;
+
+        self.thoughts.remove(thought_index);
+        self.mode = Mode::Normal;
+        self.recompute_displayed_thoughts();
+
+        Ok(())
     }
 
     /// Recompute the displayed thoughts based on current filter and sort order.

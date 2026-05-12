@@ -24,14 +24,11 @@ pub fn resolve_data_dir(override_path: Option<&Path>) -> Result<PathBuf, Thought
 
     #[cfg(not(debug_assertions))]
     {
-        dirs::data_dir()
-            .map(|d| d.join("wetware"))
-            .ok_or_else(|| {
-                ThoughtError::InvalidInput(
-                    "Could not determine data directory: $HOME or platform equivalent is not set"
-                        .to_string(),
-                )
-            })
+        dirs::data_dir().map(|d| d.join("wetware")).ok_or_else(|| {
+            ThoughtError::InvalidInput(
+                "Could not determine data directory: $HOME or platform equivalent is not set".to_string(),
+            )
+        })
     }
 }
 

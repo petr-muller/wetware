@@ -17,6 +17,11 @@ pub enum Mode {
         /// Currently highlighted match in the picker list
         selected: usize,
     },
+    /// Confirmation overlay for deleting a thought
+    ConfirmDelete {
+        /// Index into App::thoughts of the thought to delete
+        thought_index: usize,
+    },
     /// Entity description popup is showing
     EntityDetail {
         /// Indices into App::entities for entities referenced in the selected thought

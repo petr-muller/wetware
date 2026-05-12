@@ -115,10 +115,6 @@ fn test_add_execute_with_invalid_date() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
 
-    let result = add::execute(
-        "Bad date thought".to_string(),
-        Some("not-a-date".to_string()),
-        &db_path,
-    );
+    let result = add::execute("Bad date thought".to_string(), Some("not-a-date".to_string()), &db_path);
     assert!(result.is_err());
 }

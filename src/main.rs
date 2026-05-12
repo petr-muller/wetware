@@ -40,6 +40,7 @@ fn main() {
         .unwrap_or_else(|| default_db_path_in(&data_dir));
 
     let result = match cli.command {
+        Commands::Delete { id } => wetware::cli::delete::execute(id, &db_path),
         Commands::Tui => wetware::cli::tui::execute(&db_path),
         Commands::Add { content, date } => wetware::cli::add::execute(content, date, &db_path),
         Commands::Edit {

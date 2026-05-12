@@ -15,6 +15,7 @@ use super::state::Mode;
 pub fn handle_key_event(app: &mut App, key: KeyEvent) {
     match &app.mode {
         Mode::Normal => handle_normal_mode(app, key),
+        Mode::ConfirmDelete { .. } => handle_confirm_delete_mode(app, key),
         Mode::EntityPicker { .. } => handle_entity_picker_mode(app, key),
         Mode::EntityDetail { .. } => handle_entity_detail_mode(app, key),
     }
@@ -93,6 +94,28 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
                     scroll_offset: 0,
                 };
             }
+        }
+        KeyCode::Char('x') => {
+            if let Some(selected) = app.list_state.selected()
+                && let Some(&thought_index) = app.displayed_thoughts.get(selected)
+            {
+                app.mode = Mode::ConfirmDelete { thought_index };
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Handle key events in ConfirmDelete mode.
+fn handle_confirm_delete_mode(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => {
+            if let Err(_e) = app.delete_selected_thought() {
+                app.mode = Mode::Normal;
+            }
+        }
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+            app.mode = Mode::Normal;
         }
         _ => {}
     }
@@ -444,5 +467,53 @@ mod tests {
         if let Mode::EntityDetail { scroll_offset, .. } = &app.mode {
             assert_eq!(*scroll_offset, 0);
         }
+    }
+
+    #[test]
+    fn test_normal_mode_x_opens_confirm_delete() {
+        let thoughts = vec![make_thought("to delete", 0)];
+        let mut app = App::new(thoughts, vec![]);
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('x')));
+        assert!(matches!(app.mode, Mode::ConfirmDelete { thought_index: 0 }));
+    }
+
+    #[test]
+    fn test_normal_mode_x_no_selection_does_nothing() {
+        let mut app = App::new(vec![], vec![]);
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('x')));
+        assert!(matches!(app.mode, Mode::Normal));
+    }
+
+    #[test]
+    fn test_confirm_delete_n_returns_to_normal() {
+        let thoughts = vec![make_thought("to delete", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('n')));
+        assert!(matches!(app.mode, Mode::Normal));
+    }
+
+    #[test]
+    fn test_confirm_delete_esc_returns_to_normal() {
+        let thoughts = vec![make_thought("to delete", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        handle_key_event(&mut app, key_event(KeyCode::Esc));
+        assert!(matches!(app.mode, Mode::Normal));
+    }
+
+    #[test]
+    fn test_confirm_delete_other_keys_ignored() {
+        let thoughts = vec![make_thought("to delete", 0)];
+        let mut app = App::new(thoughts, vec![]);
+        app.mode = Mode::ConfirmDelete { thought_index: 0 };
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('q')));
+        assert!(matches!(app.mode, Mode::ConfirmDelete { .. }));
+        assert!(!app.should_quit);
     }
 }
