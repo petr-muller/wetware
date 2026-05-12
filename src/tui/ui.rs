@@ -185,7 +185,7 @@ fn render_thought_list(app: &App, frame: &mut Frame, area: Rect) {
         .iter()
         .map(|&idx| {
             let thought = &app.thoughts[idx];
-            let date_str = thought.created_at.format("%Y-%m-%d %H:%M").to_string();
+            let date_str = thought.created_at.format("%Y-%m-%d").to_string();
             let date_span = Span::styled(format!("{} ", date_str), Style::default().fg(Color::DarkGray));
 
             let content_max = inner_width.saturating_sub(date_str.len() + 1);
@@ -242,7 +242,7 @@ fn render_confirm_delete(app: &App, frame: &mut Frame, area: Rect) {
     };
 
     let thought = &app.thoughts[thought_index];
-    let date_str = thought.created_at.format("%Y-%m-%d %H:%M").to_string();
+    let date_str = thought.created_at.format("%Y-%m-%d").to_string();
 
     let popup_area = centered_rect(60, 30, area);
     frame.render_widget(Clear, popup_area);
