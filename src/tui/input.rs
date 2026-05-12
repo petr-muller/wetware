@@ -219,7 +219,7 @@ fn handle_entity_detail_mode(app: &mut App, key: KeyEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Entity, Thought};
+    use crate::models::{Entity, SortOrder, Thought};
     use chrono::Utc;
 
     fn make_thought(content: &str, days_ago: i64) -> Thought {
@@ -245,14 +245,14 @@ mod tests {
 
     #[test]
     fn test_normal_mode_q_quits() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         handle_key_event(&mut app, key_event(KeyCode::Char('q')));
         assert!(app.should_quit);
     }
 
     #[test]
     fn test_normal_mode_esc_quits_without_filter() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         handle_key_event(&mut app, key_event(KeyCode::Esc));
         assert!(app.should_quit);
     }
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_normal_mode_esc_clears_filter() {
         let thoughts = vec![make_thought("[Sarah] hello", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
 
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn test_normal_mode_up_decreases_selection() {
         let thoughts = vec![make_thought("a", 2), make_thought("b", 1), make_thought("c", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(2));
 
         handle_key_event(&mut app, key_event(KeyCode::Up));
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn test_normal_mode_up_stops_at_zero() {
         let thoughts = vec![make_thought("a", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(0));
 
         handle_key_event(&mut app, key_event(KeyCode::Up));
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn test_normal_mode_down_increases_selection() {
         let thoughts = vec![make_thought("a", 2), make_thought("b", 1)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(0));
 
         handle_key_event(&mut app, key_event(KeyCode::Down));
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_normal_mode_down_stops_at_end() {
         let thoughts = vec![make_thought("a", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(0));
 
         handle_key_event(&mut app, key_event(KeyCode::Down));
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_normal_mode_home_selects_first() {
         let thoughts = vec![make_thought("a", 2), make_thought("b", 1), make_thought("c", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(2));
 
         handle_key_event(&mut app, key_event(KeyCode::Home));
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_normal_mode_end_selects_last() {
         let thoughts = vec![make_thought("a", 2), make_thought("b", 1), make_thought("c", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.list_state.select(Some(0));
 
         handle_key_event(&mut app, key_event(KeyCode::End));
@@ -332,11 +332,11 @@ mod tests {
     #[test]
     fn test_normal_mode_s_toggles_sort() {
         let thoughts = vec![make_thought("newest", 0), make_thought("oldest", 5)];
-        let mut app = App::new(thoughts, vec![]);
-        assert_eq!(app.sort_order, crate::tui::state::SortOrder::Ascending);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
+        assert_eq!(app.sort_order, crate::models::SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Char('s')));
-        assert_eq!(app.sort_order, crate::tui::state::SortOrder::Descending);
+        assert_eq!(app.sort_order, crate::models::SortOrder::Descending);
 
         // Verify order changed
         let first_idx = app.displayed_thoughts[0];
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_normal_mode_slash_opens_entity_picker() {
         let entities = vec![make_entity("Sarah"), make_entity("Project")];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Char('/')));
         assert!(matches!(app.mode, Mode::EntityPicker { .. }));
@@ -360,7 +360,7 @@ mod tests {
     fn test_normal_mode_enter_opens_entity_detail() {
         let thoughts = vec![make_thought("Meeting with [Sarah]", 0)];
         let entities = vec![make_entity("Sarah")];
-        let mut app = App::new(thoughts, entities);
+        let mut app = App::new(thoughts, entities, SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Enter));
         assert!(matches!(app.mode, Mode::EntityDetail { .. }));
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn test_normal_mode_enter_no_entities_stays_normal() {
         let thoughts = vec![make_thought("No entities here", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Enter));
         assert!(matches!(app.mode, Mode::Normal));
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn test_entity_picker_esc_returns_to_normal() {
         let entities = vec![make_entity("Sarah")];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityPicker {
             input: tui_input::Input::default(),
             matches: vec![0],
@@ -398,7 +398,7 @@ mod tests {
     fn test_entity_picker_enter_applies_filter() {
         let thoughts = vec![make_thought("[Sarah] hello", 0), make_thought("world", 1)];
         let entities = vec![make_entity("Sarah")];
-        let mut app = App::new(thoughts, entities);
+        let mut app = App::new(thoughts, entities, SortOrder::Ascending);
         app.mode = Mode::EntityPicker {
             input: tui_input::Input::default(),
             matches: vec![0],
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_entity_picker_up_down_navigation() {
         let entities = vec![make_entity("Alpha"), make_entity("Beta"), make_entity("Gamma")];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityPicker {
             input: tui_input::Input::default(),
             matches: vec![0, 1, 2],
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_entity_detail_esc_returns_to_normal() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0],
             scroll_offset: 0,
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_entity_detail_scroll() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0],
             scroll_offset: 0,
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn test_normal_mode_x_opens_confirm_delete() {
         let thoughts = vec![make_thought("to delete", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Char('x')));
         assert!(matches!(app.mode, Mode::ConfirmDelete { thought_index: 0 }));
@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_normal_mode_x_no_selection_does_nothing() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
 
         handle_key_event(&mut app, key_event(KeyCode::Char('x')));
         assert!(matches!(app.mode, Mode::Normal));
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn test_confirm_delete_n_returns_to_normal() {
         let thoughts = vec![make_thought("to delete", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         handle_key_event(&mut app, key_event(KeyCode::Char('n')));
@@ -499,7 +499,7 @@ mod tests {
     #[test]
     fn test_confirm_delete_esc_returns_to_normal() {
         let thoughts = vec![make_thought("to delete", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         handle_key_event(&mut app, key_event(KeyCode::Esc));
@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn test_confirm_delete_y_without_db_returns_to_normal() {
         let thoughts = vec![make_thought("to delete", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         // No db_path set, so delete will fail and fall back to Normal
@@ -538,7 +538,7 @@ mod tests {
             created_at: thought.created_at,
         };
 
-        let mut app = App::new(vec![thought_with_id], vec![]).with_db_path(db_path.clone());
+        let mut app = App::new(vec![thought_with_id], vec![], SortOrder::Ascending).with_db_path(db_path.clone());
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         handle_key_event(&mut app, key_event(KeyCode::Char('y')));
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn test_confirm_delete_other_keys_ignored() {
         let thoughts = vec![make_thought("to delete", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         handle_key_event(&mut app, key_event(KeyCode::Char('q')));

@@ -1,5 +1,6 @@
 /// CLI module for command-line interface
 pub mod add;
+pub mod config;
 pub mod delete;
 pub mod edit;
 pub mod entities;
@@ -55,6 +56,13 @@ pub enum Commands {
     Delete {
         /// ID of the thought to delete (visible in `wet` listing output as [id])
         id: i64,
+    },
+    /// Get or set configuration values
+    Config {
+        /// Configuration key in section.item format (e.g. thoughts.order)
+        key: String,
+        /// Value to set (omit to read current value)
+        value: Option<String>,
     },
     /// Launch interactive TUI thought viewer
     Tui,

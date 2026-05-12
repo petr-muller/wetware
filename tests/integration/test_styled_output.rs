@@ -1,6 +1,7 @@
 /// Integration tests for styled entity output (T030)
 use tempfile::TempDir;
 use wetware::cli::{add, thoughts};
+use wetware::models::SortOrder;
 use wetware::services::color_mode::ColorMode;
 
 #[test]
@@ -12,7 +13,7 @@ fn test_styled_output_with_color_always() {
     add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with colors always on (even though we're not in a TTY)
-    let result = thoughts::execute(&db_path, None, ColorMode::Always);
+    let result = thoughts::execute(&db_path, None, ColorMode::Always, SortOrder::Descending);
     assert!(result.is_ok());
 }
 
@@ -25,7 +26,7 @@ fn test_styled_output_with_color_never() {
     add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with colors disabled
-    let result = thoughts::execute(&db_path, None, ColorMode::Never);
+    let result = thoughts::execute(&db_path, None, ColorMode::Never, SortOrder::Descending);
     assert!(result.is_ok());
 }
 
@@ -38,7 +39,7 @@ fn test_styled_output_with_color_auto() {
     add::execute("Meeting with [Sarah]".to_string(), None, &db_path).unwrap();
 
     // Execute with auto-detection (will be plain since tests aren't TTY)
-    let result = thoughts::execute(&db_path, None, ColorMode::Auto);
+    let result = thoughts::execute(&db_path, None, ColorMode::Auto, SortOrder::Descending);
     assert!(result.is_ok());
 }
 

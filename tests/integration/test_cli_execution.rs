@@ -1,6 +1,7 @@
 /// Integration tests for CLI execute functions (for coverage)
 use tempfile::TempDir;
 use wetware::cli::{add, delete, thoughts};
+use wetware::models::SortOrder;
 use wetware::services::color_mode::ColorMode;
 
 #[test]
@@ -36,7 +37,7 @@ fn test_notes_execute_empty_db() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
 
-    let result = thoughts::execute(&db_path, None, ColorMode::Never);
+    let result = thoughts::execute(&db_path, None, ColorMode::Never, SortOrder::Descending);
     assert!(result.is_ok());
 }
 
@@ -50,7 +51,7 @@ fn test_notes_execute_with_notes() {
     add::execute("Second thought".to_string(), None, &db_path).unwrap();
 
     // List them
-    let result = thoughts::execute(&db_path, None, ColorMode::Never);
+    let result = thoughts::execute(&db_path, None, ColorMode::Never, SortOrder::Descending);
     assert!(result.is_ok());
 }
 
@@ -65,11 +66,11 @@ fn test_notes_execute_with_entity_filter() {
     add::execute("Email [Sarah] the report".to_string(), None, &db_path).unwrap();
 
     // Filter by Sarah
-    let result = thoughts::execute(&db_path, Some("Sarah"), ColorMode::Never);
+    let result = thoughts::execute(&db_path, Some("Sarah"), ColorMode::Never, SortOrder::Descending);
     assert!(result.is_ok());
 
     // Filter by non-existent entity
-    let result = thoughts::execute(&db_path, Some("NonExistent"), ColorMode::Never);
+    let result = thoughts::execute(&db_path, Some("NonExistent"), ColorMode::Never, SortOrder::Descending);
     assert!(result.is_ok());
 }
 

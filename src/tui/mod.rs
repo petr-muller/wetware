@@ -13,13 +13,13 @@ use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use crate::errors::ThoughtError;
-use crate::models::{Entity, Thought};
+use crate::models::{Entity, SortOrder, Thought};
 use crate::services::entity_parser;
 use crate::storage::connection::get_connection;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
 
-use state::{Mode, SortOrder};
+use state::Mode;
 
 /// Root application state for the TUI viewer.
 ///
@@ -47,18 +47,15 @@ pub struct App {
 }
 
 impl App {
-    /// Create a new App with loaded data.
-    ///
-    /// Initializes with ascending sort order (oldest first), no active filter,
-    /// Normal mode, and all thoughts displayed.
-    pub fn new(thoughts: Vec<Thought>, entities: Vec<Entity>) -> Self {
+    /// Create a new App with loaded data and initial sort order.
+    pub fn new(thoughts: Vec<Thought>, entities: Vec<Entity>, sort_order: SortOrder) -> Self {
         let mut app = Self {
             thoughts,
             entities,
             displayed_thoughts: Vec::new(),
             list_state: ratatui::widgets::ListState::default(),
             mode: Mode::Normal,
-            sort_order: SortOrder::Ascending,
+            sort_order,
             active_filter: None,
             should_quit: false,
             db_path: None,
@@ -217,33 +214,36 @@ mod tests {
             make_thought("thought 2", 1),
             make_thought("thought 3", 0),
         ];
-        let app = App::new(thoughts, vec![]);
+        let app = App::new(thoughts, vec![], SortOrder::Ascending);
         assert_eq!(app.displayed_thoughts.len(), 3);
         assert_eq!(app.list_state.selected(), Some(0));
     }
 
     #[test]
     fn test_new_with_empty_thoughts() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(app.displayed_thoughts.is_empty());
         assert_eq!(app.list_state.selected(), None);
     }
 
     #[test]
-    fn test_new_defaults_to_ascending_sort() {
-        let app = App::new(vec![], vec![]);
+    fn test_new_uses_provided_sort_order() {
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert_eq!(app.sort_order, SortOrder::Ascending);
+
+        let app = App::new(vec![], vec![], SortOrder::Descending);
+        assert_eq!(app.sort_order, SortOrder::Descending);
     }
 
     #[test]
     fn test_new_defaults_to_normal_mode() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(matches!(app.mode, Mode::Normal));
     }
 
     #[test]
     fn test_new_defaults_to_no_filter() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(app.active_filter.is_none());
     }
 
@@ -254,7 +254,7 @@ mod tests {
             make_thought("oldest", 5),
             make_thought("middle", 2),
         ];
-        let app = App::new(thoughts, vec![]);
+        let app = App::new(thoughts, vec![], SortOrder::Ascending);
         // Ascending = oldest first, so thought at index 1 (5 days ago) should be first
         let first_thought_idx = app.displayed_thoughts[0];
         assert_eq!(app.thoughts[first_thought_idx].content, "oldest");
@@ -267,9 +267,7 @@ mod tests {
             make_thought("oldest", 5),
             make_thought("middle", 2),
         ];
-        let mut app = App::new(thoughts, vec![]);
-        app.sort_order = SortOrder::Descending;
-        app.recompute_displayed_thoughts();
+        let app = App::new(thoughts, vec![], SortOrder::Descending);
         let first_thought_idx = app.displayed_thoughts[0];
         assert_eq!(app.thoughts[first_thought_idx].content, "newest");
     }
@@ -281,7 +279,7 @@ mod tests {
             make_thought("No entities here", 1),
             make_thought("Called [Sarah] about [project]", 0),
         ];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
         assert_eq!(app.displayed_thoughts.len(), 2);
@@ -293,7 +291,7 @@ mod tests {
             make_thought("Meeting with [Sarah]", 2),
             make_thought("No entities here", 1),
         ];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
         assert_eq!(app.displayed_thoughts.len(), 1);
@@ -311,7 +309,7 @@ mod tests {
             make_entity("Project", None),
             make_entity("Unrelated", None),
         ];
-        let app = App::new(thoughts, entities);
+        let app = App::new(thoughts, entities, SortOrder::Ascending);
         let indices = app.selected_thought_entity_indices();
         assert_eq!(indices.len(), 2);
         assert!(indices.contains(&0)); // Sarah
@@ -320,13 +318,13 @@ mod tests {
 
     #[test]
     fn test_selected_thought_entity_indices_no_selection() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(app.selected_thought_entity_indices().is_empty());
     }
 
     #[test]
     fn test_quit_flag() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(!app.should_quit);
         app.should_quit = true;
         assert!(app.should_quit);
@@ -334,19 +332,19 @@ mod tests {
 
     #[test]
     fn test_with_db_path() {
-        let app = App::new(vec![], vec![]).with_db_path(std::path::PathBuf::from("/tmp/test.db"));
+        let app = App::new(vec![], vec![], SortOrder::Ascending).with_db_path(std::path::PathBuf::from("/tmp/test.db"));
         assert_eq!(app.db_path, Some(std::path::PathBuf::from("/tmp/test.db")));
     }
 
     #[test]
     fn test_new_has_no_db_path() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         assert!(app.db_path.is_none());
     }
 
     #[test]
     fn test_delete_selected_thought_not_in_confirm_mode() {
-        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        let mut app = App::new(vec![make_thought("test", 0)], vec![], SortOrder::Ascending);
         // Not in ConfirmDelete mode — should be a no-op
         let result = app.delete_selected_thought();
         assert!(result.is_ok());
@@ -355,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_delete_selected_thought_no_db_path() {
-        let mut app = App::new(vec![make_thought("test", 0)], vec![]);
+        let mut app = App::new(vec![make_thought("test", 0)], vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
         let result = app.delete_selected_thought();
         assert!(result.is_err());
@@ -383,7 +381,7 @@ mod tests {
             created_at: thought.created_at,
         };
 
-        let mut app = App::new(vec![thought_with_id], vec![]).with_db_path(db_path.clone());
+        let mut app = App::new(vec![thought_with_id], vec![], SortOrder::Ascending).with_db_path(db_path.clone());
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
 
         let result = app.delete_selected_thought();
@@ -428,7 +426,7 @@ mod tests {
             },
         ];
 
-        let mut app = App::new(thoughts, vec![]).with_db_path(db_path);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending).with_db_path(db_path);
         app.list_state.select(Some(1));
         // Delete the last thought (index 1 in thoughts vec)
         app.mode = Mode::ConfirmDelete { thought_index: 1 };
