@@ -27,10 +27,13 @@ fn main() {
         eprintln!("Error creating data directory: {e}");
         process::exit(1);
     }
-    if let Err(e) = config::ensure_config(&data_dir) {
-        eprintln!("Error initializing config: {e}");
-        process::exit(1);
-    }
+    let config = match config::ensure_config(&data_dir) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Error initializing config: {e}");
+            process::exit(1);
+        }
+    };
 
     // Database path: WETWARE_DB env var > <data_dir>/default.db
     let db_path = env::var("WETWARE_DB")
@@ -40,8 +43,9 @@ fn main() {
         .unwrap_or_else(|| default_db_path_in(&data_dir));
 
     let result = match cli.command {
+        Commands::Config { key, value } => wetware::cli::config::execute(&data_dir, key, value),
         Commands::Delete { id } => wetware::cli::delete::execute(id, &db_path),
-        Commands::Tui => wetware::cli::tui::execute(&db_path),
+        Commands::Tui => wetware::cli::tui::execute(&db_path, config.thoughts.order),
         Commands::Add { content, date } => wetware::cli::add::execute(content, date, &db_path),
         Commands::Edit {
             id,
@@ -49,7 +53,9 @@ fn main() {
             date,
             editor,
         } => wetware::cli::edit::execute(id, content, date, editor, &db_path),
-        Commands::Thoughts { on } => wetware::cli::thoughts::execute(&db_path, on.as_deref(), cli.color),
+        Commands::Thoughts { on } => {
+            wetware::cli::thoughts::execute(&db_path, on.as_deref(), cli.color, config.thoughts.order)
+        }
         Commands::Entities => wetware::cli::entities::execute(&db_path),
         Commands::Entity { command } => match command {
             EntityCommands::Edit {

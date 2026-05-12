@@ -420,7 +420,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Entity, Thought};
+    use crate::models::{Entity, SortOrder, Thought};
     use chrono::Utc;
     use ratatui::{Terminal, backend::TestBackend};
 
@@ -522,14 +522,14 @@ mod tests {
 
     #[test]
     fn test_render_empty_thoughts_shows_placeholder() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 60, 10);
         assert!(output.contains("No thoughts recorded yet"));
     }
 
     #[test]
     fn test_render_empty_thoughts_with_filter_shows_filter_message() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
         let output = render_to_string(&app, 60, 10);
@@ -540,21 +540,21 @@ mod tests {
     #[test]
     fn test_render_thoughts_shows_content() {
         let thoughts = vec![make_thought("Meeting with team", 0)];
-        let app = App::new(thoughts, vec![]);
+        let app = App::new(thoughts, vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("Meeting with team"));
     }
 
     #[test]
     fn test_render_status_bar_shows_sort_order() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("Sort: Oldest first"));
     }
 
     #[test]
     fn test_render_status_bar_shows_key_hints() {
-        let app = App::new(vec![], vec![]);
+        let app = App::new(vec![], vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("q:Quit"));
     }
@@ -562,7 +562,7 @@ mod tests {
     #[test]
     fn test_render_status_bar_shows_active_filter() {
         let thoughts = vec![make_thought("[Sarah] hello", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
         let output = render_to_string(&app, 80, 10);
@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn test_render_filtered_title() {
         let thoughts = vec![make_thought("[Sarah] hello", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
         app.recompute_displayed_thoughts();
         let output = render_to_string(&app, 80, 10);
@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_render_descending_sort_label() {
-        let mut app = App::new(vec![], vec![]);
+        let mut app = App::new(vec![], vec![], SortOrder::Ascending);
         app.sort_order.toggle();
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("Sort: Newest first"));
@@ -591,7 +591,7 @@ mod tests {
     #[test]
     fn test_render_entity_picker_overlay() {
         let entities = vec![make_entity("Sarah", None), make_entity("Project", None)];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityPicker {
             input: tui_input::Input::default(),
             matches: vec![0, 1],
@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn test_render_entity_detail_with_description() {
         let entities = vec![make_entity("Sarah", Some("A colleague from work"))];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0],
             scroll_offset: 0,
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn test_render_entity_detail_without_description() {
         let entities = vec![make_entity("Sarah", None)];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0],
             scroll_offset: 0,
@@ -636,7 +636,7 @@ mod tests {
             make_entity("Sarah", Some("A person")),
             make_entity("Project", Some("A big project")),
         ];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0, 1],
             scroll_offset: 0,
@@ -655,7 +655,7 @@ mod tests {
             make_thought("Second thought", 1),
             make_thought("Third thought", 0),
         ];
-        let app = App::new(thoughts, vec![]);
+        let app = App::new(thoughts, vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("First thought"));
         assert!(output.contains("Second thought"));
@@ -665,7 +665,7 @@ mod tests {
     #[test]
     fn test_render_thought_shows_date() {
         let thoughts = vec![make_thought("dated thought", 0)];
-        let app = App::new(thoughts, vec![]);
+        let app = App::new(thoughts, vec![], SortOrder::Ascending);
         let output = render_to_string(&app, 80, 10);
         let today = Utc::now().format("%Y-%m-%d").to_string();
         assert!(output.contains(&today));
@@ -688,7 +688,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n\n");
         let entities = vec![make_entity("Sarah", Some(&long_desc))];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityDetail {
             entity_indices: vec![0],
             scroll_offset: 5,
@@ -700,7 +700,7 @@ mod tests {
     #[test]
     fn test_render_confirm_delete_overlay() {
         let thoughts = vec![make_thought("Meeting with team", 0)];
-        let mut app = App::new(thoughts, vec![]);
+        let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.mode = Mode::ConfirmDelete { thought_index: 0 };
         let output = render_to_string(&app, 80, 24);
         assert!(output.contains("Delete Thought"));
@@ -715,7 +715,7 @@ mod tests {
             make_entity("Beta", None),
             make_entity("Gamma", None),
         ];
-        let mut app = App::new(vec![], entities);
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
         app.mode = Mode::EntityPicker {
             input: tui_input::Input::default(),
             matches: vec![0, 1, 2],

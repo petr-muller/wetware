@@ -9,4 +9,4 @@ pub mod storage;
 pub mod tui;
 
 pub use errors::ThoughtError;
-pub use models::{Entity, Thought};
+pub use models::{Entity, SortOrder, Thought};

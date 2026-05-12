@@ -1,6 +1,6 @@
 //! Application state types for the TUI viewer
 //!
-//! Defines the interaction modes and sort order used by the TUI.
+//! Defines the interaction modes used by the TUI.
 
 /// Interaction mode of the TUI.
 ///
@@ -29,68 +29,4 @@ pub enum Mode {
         /// Scroll position within the description popup
         scroll_offset: usize,
     },
-}
-
-/// Sort order for the thought list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SortOrder {
-    /// Oldest thoughts first
-    Ascending,
-    /// Newest thoughts first
-    Descending,
-}
-
-impl SortOrder {
-    /// Toggle between ascending and descending order.
-    pub fn toggle(&mut self) {
-        *self = match self {
-            SortOrder::Ascending => SortOrder::Descending,
-            SortOrder::Descending => SortOrder::Ascending,
-        };
-    }
-
-    /// Human-readable label for the current sort order.
-    pub fn label(&self) -> &str {
-        match self {
-            SortOrder::Ascending => "Oldest first",
-            SortOrder::Descending => "Newest first",
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sort_order_toggle_ascending_to_descending() {
-        let mut order = SortOrder::Ascending;
-        order.toggle();
-        assert_eq!(order, SortOrder::Descending);
-    }
-
-    #[test]
-    fn test_sort_order_toggle_descending_to_ascending() {
-        let mut order = SortOrder::Descending;
-        order.toggle();
-        assert_eq!(order, SortOrder::Ascending);
-    }
-
-    #[test]
-    fn test_sort_order_label_ascending() {
-        assert_eq!(SortOrder::Ascending.label(), "Oldest first");
-    }
-
-    #[test]
-    fn test_sort_order_label_descending() {
-        assert_eq!(SortOrder::Descending.label(), "Newest first");
-    }
-
-    #[test]
-    fn test_sort_order_double_toggle_returns_to_original() {
-        let mut order = SortOrder::Ascending;
-        order.toggle();
-        order.toggle();
-        assert_eq!(order, SortOrder::Ascending);
-    }
 }

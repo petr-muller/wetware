@@ -1,5 +1,6 @@
 /// Thoughts command implementation
 use crate::errors::ThoughtError;
+use crate::models::SortOrder;
 use crate::services::color_mode::ColorMode;
 use crate::services::entity_styler::EntityStyler;
 use crate::storage::connection::get_connection;
@@ -8,25 +9,24 @@ use crate::storage::thoughts_repository::ThoughtsRepository;
 use std::path::Path;
 
 /// Execute the thoughts command
-///
-/// # Arguments
-///
-/// * `db_path` - Optional path to the database file
-/// * `entity_filter` - Optional entity name to filter thoughts by
-/// * `color_mode` - Controls whether output should be styled with colors
-pub fn execute(db_path: &Path, entity_filter: Option<&str>, color_mode: ColorMode) -> Result<(), ThoughtError> {
-    // Get database connection
+pub fn execute(
+    db_path: &Path,
+    entity_filter: Option<&str>,
+    color_mode: ColorMode,
+    sort_order: SortOrder,
+) -> Result<(), ThoughtError> {
     let conn = get_connection(db_path)?;
-
-    // Run migrations if needed
     run_migrations(&conn)?;
 
-    // Get thoughts (filtered by entity if specified)
-    let thoughts = if let Some(entity_name) = entity_filter {
+    let mut thoughts = if let Some(entity_name) = entity_filter {
         ThoughtsRepository::list_by_entity(&conn, entity_name)?
     } else {
         ThoughtsRepository::list_all(&conn)?
     };
+
+    if sort_order == SortOrder::Descending {
+        thoughts.reverse();
+    }
 
     if thoughts.is_empty() {
         if let Some(entity_name) = entity_filter {
@@ -35,7 +35,6 @@ pub fn execute(db_path: &Path, entity_filter: Option<&str>, color_mode: ColorMod
             println!("No thoughts found.");
         }
     } else {
-        // Create entity styler based on color mode
         let use_colors = color_mode.should_use_colors();
         let mut styler = EntityStyler::new(use_colors);
 

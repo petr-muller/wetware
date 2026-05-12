@@ -32,12 +32,12 @@ fn test_notes_command_empty_database() {
 }
 
 #[test]
-fn test_notes_command_chronological_order() {
+fn test_notes_command_default_descending_order() {
     let temp_db = setup_temp_db();
 
     // Add thoughts in sequence
     run_wet_command(&["add", "Oldest thought"], Some(&temp_db));
-    std::thread::sleep(std::time::Duration::from_millis(10)); // Ensure different timestamps
+    std::thread::sleep(std::time::Duration::from_millis(10));
     run_wet_command(&["add", "Middle thought"], Some(&temp_db));
     std::thread::sleep(std::time::Duration::from_millis(10));
     run_wet_command(&["add", "Newest thought"], Some(&temp_db));
@@ -46,14 +46,14 @@ fn test_notes_command_chronological_order() {
 
     assert_eq!(result.status, 0, "Command should succeed");
 
-    // Verify chronological order by checking positions
+    // Default order is descending (newest first)
     let stdout = result.stdout;
     let oldest_pos = stdout.find("Oldest thought").expect("Should contain oldest thought");
     let middle_pos = stdout.find("Middle thought").expect("Should contain middle thought");
     let newest_pos = stdout.find("Newest thought").expect("Should contain newest thought");
 
-    assert!(oldest_pos < middle_pos, "Oldest should appear before middle");
-    assert!(middle_pos < newest_pos, "Middle should appear before newest");
+    assert!(newest_pos < middle_pos, "Newest should appear before middle");
+    assert!(middle_pos < oldest_pos, "Middle should appear before oldest");
 }
 
 #[test]
