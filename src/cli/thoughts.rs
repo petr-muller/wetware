@@ -40,7 +40,7 @@ pub fn execute(db_path: &Path, entity_filter: Option<&str>, color_mode: ColorMod
         let mut styler = EntityStyler::new(use_colors);
 
         for thought in thoughts {
-            let styled_content = styler.render_content(&thought.content);
+            let styled_content = styler.render_content(thought.content.trim());
             println!(
                 "[{}] {} - {}",
                 thought.id.unwrap_or(0),
