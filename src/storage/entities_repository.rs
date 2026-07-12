@@ -117,6 +117,31 @@ impl EntitiesRepository {
 
         Ok(())
     }
+
+    /// Rename an entity, updating its `name` and `canonical_name`.
+    ///
+    /// Returns the entity's ID on success. Fails with `EntityNotFound` if `old_name`
+    /// doesn't exist, or `EntityAlreadyExists` if `new_name` resolves to a *different*
+    /// existing entity. Renaming to the same entity (no-op, or a casing-only change)
+    /// succeeds, since the collision check compares IDs rather than the name string.
+    pub fn rename(conn: &Connection, old_name: &str, new_name: &str) -> Result<i64, ThoughtError> {
+        let old =
+            Self::find_by_name(conn, old_name)?.ok_or_else(|| ThoughtError::EntityNotFound(old_name.to_string()))?;
+
+        if let Some(existing) = Self::find_by_name(conn, new_name)?
+            && existing.id != old.id
+        {
+            return Err(ThoughtError::EntityAlreadyExists(new_name.to_string()));
+        }
+
+        let id = old.id.unwrap();
+        conn.execute(
+            "UPDATE entities SET name = ?1, canonical_name = ?2 WHERE id = ?3",
+            (new_name.to_lowercase(), new_name, id),
+        )?;
+
+        Ok(id)
+    }
 }
 
 #[cfg(test)]
@@ -305,5 +330,88 @@ mod tests {
             Err(ThoughtError::EntityNotFound(name)) => assert_eq!(name, "nonexistent"),
             _ => panic!("Expected EntityNotFound error"),
         }
+    }
+
+    #[test]
+    fn test_rename_success() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("Sarah".to_string());
+        let id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        let renamed_id = EntitiesRepository::rename(&conn, "sarah", "Sarah Smith").unwrap();
+        assert_eq!(renamed_id, id);
+
+        let found = EntitiesRepository::find_by_name(&conn, "sarah smith").unwrap().unwrap();
+        assert_eq!(found.id, Some(id));
+        assert_eq!(found.canonical_name, "Sarah Smith");
+
+        assert!(EntitiesRepository::find_by_name(&conn, "sarah").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_rename_casing_only_self_rename() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("Sarah".to_string());
+        let id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        let renamed_id = EntitiesRepository::rename(&conn, "Sarah", "SARAH").unwrap();
+        assert_eq!(renamed_id, id);
+
+        let found = EntitiesRepository::find_by_name(&conn, "sarah").unwrap().unwrap();
+        assert_eq!(found.canonical_name, "SARAH");
+    }
+
+    #[test]
+    fn test_rename_noop_self_rename() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("Sarah".to_string());
+        let id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        let renamed_id = EntitiesRepository::rename(&conn, "Sarah", "Sarah").unwrap();
+        assert_eq!(renamed_id, id);
+
+        let found = EntitiesRepository::find_by_name(&conn, "sarah").unwrap().unwrap();
+        assert_eq!(found.canonical_name, "Sarah");
+    }
+
+    #[test]
+    fn test_rename_nonexistent_entity() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let result = EntitiesRepository::rename(&conn, "nonexistent", "New Name");
+        assert!(result.is_err());
+        match result {
+            Err(ThoughtError::EntityNotFound(name)) => assert_eq!(name, "nonexistent"),
+            _ => panic!("Expected EntityNotFound error"),
+        }
+    }
+
+    #[test]
+    fn test_rename_collision_with_different_entity() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah = Entity::new("Sarah".to_string());
+        let john = Entity::new("John".to_string());
+        EntitiesRepository::find_or_create(&conn, &sarah).unwrap();
+        EntitiesRepository::find_or_create(&conn, &john).unwrap();
+
+        let result = EntitiesRepository::rename(&conn, "sarah", "John");
+        assert!(result.is_err());
+        match result {
+            Err(ThoughtError::EntityAlreadyExists(name)) => assert_eq!(name, "John"),
+            _ => panic!("Expected EntityAlreadyExists error"),
+        }
+
+        // Original entity untouched
+        let found = EntitiesRepository::find_by_name(&conn, "sarah").unwrap();
+        assert!(found.is_some());
     }
 }

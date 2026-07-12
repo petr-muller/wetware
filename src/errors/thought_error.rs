@@ -24,6 +24,9 @@ pub enum ThoughtError {
     #[error("Entity '{0}' not found")]
     EntityNotFound(String),
 
+    #[error("Entity '{0}' already exists")]
+    EntityAlreadyExists(String),
+
     #[error("Thought with ID {0} not found")]
     ThoughtNotFound(i64),
 

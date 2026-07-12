@@ -63,6 +63,9 @@ fn main() {
                 description,
                 description_file,
             } => wetware::cli::entity_edit::execute(&entity_name, description, description_file, &db_path),
+            EntityCommands::Rename { entity_name, new_name } => {
+                wetware::cli::entity_rename::execute(&entity_name, &new_name, &db_path)
+            }
         },
     };
 
