@@ -1,5 +1,5 @@
 /// Entity parser service - extracts entity references from note text
-use regex::Regex;
+use regex::{Captures, Regex};
 use std::sync::LazyLock;
 
 /// Regex pattern for entity syntax: [entity] or [alias](entity)
@@ -73,6 +73,53 @@ pub fn extract_unique_entities(text: &str) -> Vec<String> {
     }
 
     unique
+}
+
+/// Rewrite literal references to `old_name` (case-insensitive) into `new_name`.
+///
+/// Used when renaming an entity, to keep stored thought/description text in sync
+/// with the entity's new name.
+///
+/// - Bare `[OldName]` -> `[NewName]` (no group 2, display text matches `old_name`)
+/// - Aliased `[Alias](OldName)` -> `[Alias](NewName)` (group 2 matches `old_name`;
+///   the alias/display text in group 1 is left untouched)
+/// - `[Sarah](other-target)` where group 1 happens to equal `old_name` but group 2
+///   is a different target: left untouched (coincidental alias text, not a reference
+///   to this entity)
+/// - Everything else: left untouched
+///
+/// # Examples
+///
+/// ```
+/// use wetware::services::entity_parser::rewrite_entity_references;
+///
+/// let text = rewrite_entity_references("Meeting with [Sarah]", "sarah", "Sarah Smith");
+/// assert_eq!(text, "Meeting with [Sarah Smith]");
+///
+/// let text = rewrite_entity_references("Called [Sarah](sarah) again", "sarah", "Sarah Smith");
+/// assert_eq!(text, "Called [Sarah](Sarah Smith) again");
+/// ```
+pub fn rewrite_entity_references(text: &str, old_name: &str, new_name: &str) -> String {
+    let old_lower = old_name.trim().to_lowercase();
+
+    ENTITY_PATTERN
+        .replace_all(text, |caps: &Captures| {
+            let alias = caps[1].trim();
+            let target = caps.get(2).map(|m| m.as_str().trim());
+
+            match target {
+                Some(t) if !t.is_empty() => {
+                    if t.to_lowercase() == old_lower {
+                        format!("[{}]({})", alias, new_name)
+                    } else {
+                        caps[0].to_string()
+                    }
+                }
+                None if alias.to_lowercase() == old_lower => format!("[{}]", new_name),
+                _ => caps[0].to_string(),
+            }
+        })
+        .into_owned()
 }
 
 #[cfg(test)]
@@ -227,5 +274,62 @@ mod tests {
         assert_eq!(extract_entities("[entity1] [entity2]"), vec!["entity1", "entity2"]);
         assert!(extract_entities("No entities here").is_empty());
         assert!(extract_entities("Empty [] ignored").is_empty());
+    }
+
+    // ========== Entity Rename: rewrite_entity_references Tests ==========
+
+    #[test]
+    fn test_rewrite_bare_single_occurrence() {
+        let text = rewrite_entity_references("Meeting with [Sarah]", "sarah", "Sarah Smith");
+        assert_eq!(text, "Meeting with [Sarah Smith]");
+    }
+
+    #[test]
+    fn test_rewrite_bare_multiple_occurrences() {
+        let text = rewrite_entity_references("[Sarah] met [Sarah] again", "sarah", "Sarah Smith");
+        assert_eq!(text, "[Sarah Smith] met [Sarah Smith] again");
+    }
+
+    #[test]
+    fn test_rewrite_aliased_target_preserves_alias_text() {
+        let text = rewrite_entity_references("Called [Sarah](sarah) again", "sarah", "Sarah Smith");
+        assert_eq!(text, "Called [Sarah](Sarah Smith) again");
+    }
+
+    #[test]
+    fn test_rewrite_aliased_target_different_alias_text() {
+        let text = rewrite_entity_references("Called [my friend](sarah) again", "sarah", "Sarah Smith");
+        assert_eq!(text, "Called [my friend](Sarah Smith) again");
+    }
+
+    #[test]
+    fn test_rewrite_untouched_coincidental_alias_display_text() {
+        // "Sarah" is used here as alias display text for a *different* target entity.
+        let text = rewrite_entity_references("[Sarah](project-alpha)", "sarah", "Sarah Smith");
+        assert_eq!(text, "[Sarah](project-alpha)");
+    }
+
+    #[test]
+    fn test_rewrite_case_insensitive_match() {
+        let text = rewrite_entity_references("[SARAH] and [sarah]", "Sarah", "Sarah Smith");
+        assert_eq!(text, "[Sarah Smith] and [Sarah Smith]");
+    }
+
+    #[test]
+    fn test_rewrite_mixed_bare_and_aliased() {
+        let text = rewrite_entity_references("[Sarah] called [S](sarah)", "sarah", "Sarah Smith");
+        assert_eq!(text, "[Sarah Smith] called [S](Sarah Smith)");
+    }
+
+    #[test]
+    fn test_rewrite_no_match_passthrough() {
+        let text = rewrite_entity_references("Meeting with [John] about [project]", "sarah", "Sarah Smith");
+        assert_eq!(text, "Meeting with [John] about [project]");
+    }
+
+    #[test]
+    fn test_rewrite_unrelated_text_unchanged() {
+        let text = rewrite_entity_references("No entities here at all", "sarah", "Sarah Smith");
+        assert_eq!(text, "No entities here at all");
     }
 }

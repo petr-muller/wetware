@@ -5,6 +5,7 @@ pub mod delete;
 pub mod edit;
 pub mod entities;
 pub mod entity_edit;
+pub mod entity_rename;
 pub mod thoughts;
 pub mod tui;
 
@@ -87,5 +88,12 @@ pub enum EntityCommands {
         /// Path to file containing description (mutually exclusive with --description)
         #[arg(long)]
         description_file: Option<std::path::PathBuf>,
+    },
+    /// Rename an entity, rewriting all literal references to it
+    Rename {
+        /// Current entity name (case-insensitive)
+        entity_name: String,
+        /// New entity name
+        new_name: String,
     },
 }
