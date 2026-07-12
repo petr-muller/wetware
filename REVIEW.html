@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Review: petr-muller/wetware#227</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 860px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; background: #fff; }
+  code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+  code { background: #f2f2f2; padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  pre { background: #f6f8fa; padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85em; }
+  header { border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  header dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin: 0.5rem 0; }
+  header dt { font-weight: 600; color: #555; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.15rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; margin-top: 2rem; }
+  .verdict { padding: 1rem 1.2rem; border-radius: 6px; background: #eaf6ea; border-left: 4px solid #2e7d32; margin: 1rem 0; }
+  .verdict .label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #2e7d32; }
+  .finding { border: 1px solid #ddd; border-radius: 6px; padding: 0.9rem 1.1rem; margin: 0.9rem 0; }
+  .finding h3 { margin: 0 0 0.4rem 0; font-size: 1rem; }
+  .sev { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; padding: 0.15em 0.5em; border-radius: 3px; margin-right: 0.5em; vertical-align: middle; }
+  .sev.should-fix { background: #fff3cd; color: #7a5c00; }
+  .sev.nit { background: #e8e8e8; color: #444; }
+  .sev.question { background: #e3f0fc; color: #14508a; }
+  .loc { font-size: 0.85em; color: #555; margin-bottom: 0.5rem; }
+  ul.plain { padding-left: 1.3rem; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Review: <code>petr-muller/wetware#227</code></h1>
+  <dl>
+    <dt>Title</dt><dd>feat: add <code>wet entity rename</code> command</dd>
+    <dt>PR</dt><dd><a href="https://github.com/petr-muller/wetware/pull/227">github.com/petr-muller/wetware/pull/227</a></dd>
+    <dt>Head SHA</dt><dd><code>c249bd602d7d97a0e7e29f7ae1a124a9ad8a3226</code></dd>
+    <dt>Base</dt><dd><code>main</code></dd>
+    <dt>Reviewed at</dt><dd>2026-07-12T18:36:57Z</dd>
+    <dt>Refreshed from</dt><dd><code>ae933381e0670b962e691b294683d42dbd6d944d</code> — 2 commits (87ebdce, c249bd6) fixed the should-fix bracket-corruption finding and the README doc-gap nit</dd>
+  </dl>
+</header>
+
+<div class="verdict">
+  <span class="label">Verdict: Approve</span>
+  <p>The feature is correctly scoped, transactionally sound, and well tested (11 tests, all passing; clean clippy). The should-fix bracket-corruption edge case and the README doc gap from the initial review have both been fixed. Two low-severity nits remain, neither blocking.</p>
+</div>
+
+<h2>What this PR does</h2>
+<ul class="plain">
+  <li>Adds <code>wet entity rename &lt;old-name&gt; &lt;new-name&gt;</code>.</li>
+  <li>Rewrites literal bracket references (<code>[Name]</code> and <code>[Alias](Name)</code>) to the new name across every entity description and every thought linked to the renamed entity, then updates the entity row itself.</li>
+  <li>All three steps run in a single transaction; <code>thought_entities</code> link rows are untouched since they're keyed by entity ID.</li>
+  <li>Rename onto a name already used by a <em>different</em> entity is rejected; casing-only self-rename is allowed (collision check compares IDs, not the <code>UNIQUE COLLATE NOCASE</code> name column).</li>
+  <li>Spec added at <code>specs/010-entity-rename.md</code>.</li>
+</ul>
+<p><strong>Since previous review:</strong></p>
+<ul class="plain">
+  <li><code>new-name</code> is now validated to reject <code>[</code>, <code>]</code>, <code>(</code>, <code>)</code> (commit 87ebdce), closing the bracket-corruption finding below.</li>
+  <li>README gained a "Rename an entity" section with usage example (commit c249bd6).</li>
+</ul>
+
+<h2>Findings</h2>
+
+<div class="finding">
+  <h3><span class="sev nit">nit</span>Redundant collision check</h3>
+  <div class="loc"><code>src/cli/entity_rename.rs:110-115</code> and <code>src/storage/entities_repository.rs:344-348</code></div>
+  <p>"New name already exists" is checked once in the CLI layer before opening the transaction, and again inside <code>EntitiesRepository::rename</code>. Harmless for a single-user local CLI (no real TOCTOU exposure) but duplicated logic.</p>
+</div>
+
+<div class="finding">
+  <h3><span class="sev nit">nit</span>Error double-printed</h3>
+  <div class="loc"><code>src/cli/entity_rename.rs:103-104,113-114</code> vs <code>src/main.rs:72-75</code></div>
+  <p><code>execute()</code> <code>eprintln!</code>s a detailed error message and returns <code>Err</code>; <code>main.rs</code> then also prints <code>Error: {}</code> for the same <code>Err</code>. Pre-existing pattern already present in <code>entity_edit.rs</code>, not introduced by this PR, but compounds here.</p>
+</div>
+
+<h2>Resolved</h2>
+
+<div class="finding">
+  <h3><span class="sev should-fix">should-fix</span>Unescaped <code>new_name</code> can corrupt stored bracket syntax — <em>fixed in 87ebdce</em></h3>
+  <div class="loc"><code>src/cli/entity_rename.rs:32-35</code> (new validation), originally flagged at <code>src/services/entity_parser.rs:113,118</code></div>
+  <p>Resolution: <code>execute()</code> now rejects any <code>new_name</code> containing <code>[</code>, <code>]</code>, <code>(</code>, or <code>)</code> before doing any lookup or transaction work, with a clear <code>InvalidInput</code> error. Spec (<code>specs/010-entity-rename.md</code>) updated to document the constraint and its rationale.</p>
+  <pre>if new_name.contains(['[', ']', '(', ')']) {
+    return Err(ThoughtError::InvalidInput(
+        "New entity name cannot contain '[', ']', '(', or ')' (these are reserved for entity reference syntax)"
+            .to_string(),
+    ));
+}</pre>
+</div>
+
+<div class="finding">
+  <h3><span class="sev nit">nit</span>README not updated — <em>fixed in c249bd6</em></h3>
+  <div class="loc"><code>README.md</code></div>
+  <p>Resolution: added a "Rename an entity" section with a <code>wet entity rename rust Rustlang</code> example, consistent with the existing <code>entity edit</code> section style.</p>
+</div>
+
+<h2>Things I checked and was fine with</h2>
+<ul class="plain">
+  <li>Transaction ordering: descriptions and thought content are rewritten using the pre-rename entity name/row before the row itself is renamed inside the same transaction — lookups stay valid throughout.</li>
+  <li><code>ThoughtsRepository::update</code> used by rename is a raw content update with no entity re-linking side effect, so it can't create duplicate entities or drop the just-renamed link (unlike the <code>wet edit</code> path which re-parses content).</li>
+  <li><code>rewrite_entity_references</code> does plain string comparison, not regex built from user input — no ReDoS/injection risk from entity names containing regex metacharacters.</li>
+  <li><code>thought_entities</code> links confirmed untouched by rename (keyed by entity ID) via <code>test_rename_preserves_link_by_id</code>.</li>
+  <li>New <code>new_name</code> bracket/paren validation checked before any DB lookup or transaction, so a rejected rename can't have side effects.</li>
+  <li>New validation is covered by <code>test_entity_rename_rejects_bracket_characters_in_new_name</code>, which exercises four bad-name variants (<code>Sarah]x</code>, <code>[Sarah</code>, <code>Sarah(x)</code>, <code>Sarah)</code>) and confirms original content is untouched by the rejected attempts.</li>
+  <li>Ran <code>cargo nextest run</code> for the entity_rename tests at the new head (11/11 pass, up from 10 — the new validation test) and <code>cargo clippy --all-targets</code> (only pre-existing unrelated warnings in <code>tui/input.rs</code> and <code>config.rs</code>).</li>
+  <li>Casing-only self-rename and no-op rename both covered by repository tests and behave correctly against the <code>UNIQUE COLLATE NOCASE</code> constraint.</li>
+  <li>Rollback-on-failure covered by <code>test_rename_rollback_on_collision_leaves_everything_unchanged</code>.</li>
+</ul>
+
+<h2>Open questions for the author</h2>
+<ul class="plain">
+  <li>Any interest in deduplicating the collision check between <code>cli/entity_rename.rs</code> and <code>EntitiesRepository::rename</code>?</li>
+</ul>
+
+</body>
+</html>
