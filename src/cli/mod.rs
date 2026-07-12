@@ -6,6 +6,7 @@ pub mod edit;
 pub mod entities;
 pub mod entity_edit;
 pub mod entity_rename;
+pub mod entity_show;
 pub mod thoughts;
 pub mod tui;
 
@@ -95,5 +96,10 @@ pub enum EntityCommands {
         entity_name: String,
         /// New entity name
         new_name: String,
+    },
+    /// Show an entity's description and latest thoughts
+    Show {
+        /// Entity name (case-insensitive)
+        entity_name: String,
     },
 }

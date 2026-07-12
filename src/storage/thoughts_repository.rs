@@ -133,6 +133,44 @@ impl ThoughtsRepository {
 
         Ok(thoughts)
     }
+
+    /// List the most recent thoughts linked to an entity (case-insensitive), newest first
+    pub fn list_latest_by_entity(
+        conn: &Connection,
+        entity_name: &str,
+        limit: usize,
+    ) -> Result<Vec<Thought>, ThoughtError> {
+        let lowercase_name = entity_name.to_lowercase();
+
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT t.id, t.content, t.created_at
+             FROM thoughts t
+             INNER JOIN thought_entities te ON t.id = te.thought_id
+             INNER JOIN entities e ON te.entity_id = e.id
+             WHERE e.name = ?1
+             ORDER BY t.created_at DESC
+             LIMIT ?2",
+        )?;
+
+        let thoughts = stmt
+            .query_map((lowercase_name, limit as i64), |row| {
+                let created_at_str: String = row.get(2)?;
+                let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                    .map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+                    })?
+                    .with_timezone(&Utc);
+
+                Ok(Thought {
+                    id: Some(row.get(0)?),
+                    content: row.get(1)?,
+                    created_at,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(thoughts)
+    }
 }
 
 #[cfg(test)]
@@ -297,5 +335,91 @@ mod tests {
         assert_eq!(thoughts.len(), 2);
         assert_eq!(thoughts[0].content, "First");
         assert_eq!(thoughts[1].content, "Second");
+    }
+
+    /// Save a thought with the given content, link it to `entity_name` (creating the
+    /// entity if needed), and set its `created_at` explicitly so ordering is deterministic.
+    fn save_linked_thought(conn: &Connection, content: &str, entity_name: &str, created_at: DateTime<Utc>) -> i64 {
+        use crate::models::entity::Entity;
+        use crate::storage::entities_repository::EntitiesRepository;
+
+        let thought = Thought::new(content.to_string()).unwrap();
+        let thought_id = ThoughtsRepository::save(conn, &thought).unwrap();
+        ThoughtsRepository::update(conn, thought_id, content, created_at).unwrap();
+
+        let entity = Entity::new(entity_name.to_string());
+        let entity_id = EntitiesRepository::find_or_create(conn, &entity).unwrap();
+        EntitiesRepository::link_to_thought(conn, entity_id, thought_id).unwrap();
+
+        thought_id
+    }
+
+    fn day(offset: i64) -> DateTime<Utc> {
+        use chrono::Duration;
+        Utc::now() + Duration::days(offset)
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_orders_newest_first() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "Oldest", "rust", day(-2));
+        save_linked_thought(&conn, "Middle", "rust", day(-1));
+        save_linked_thought(&conn, "Newest", "rust", day(0));
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "rust", 5).unwrap();
+        assert_eq!(thoughts.len(), 3);
+        assert_eq!(thoughts[0].content, "Newest");
+        assert_eq!(thoughts[1].content, "Middle");
+        assert_eq!(thoughts[2].content, "Oldest");
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_respects_limit() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        for i in 0..7 {
+            save_linked_thought(&conn, &format!("Thought {i}"), "rust", day(i));
+        }
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "rust", 5).unwrap();
+        assert_eq!(thoughts.len(), 5);
+        assert_eq!(thoughts[0].content, "Thought 6");
+        assert_eq!(thoughts[4].content, "Thought 2");
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_fewer_than_limit_returns_all() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "Only one", "rust", day(0));
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "rust", 5).unwrap();
+        assert_eq!(thoughts.len(), 1);
+        assert_eq!(thoughts[0].content, "Only one");
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_no_thoughts_returns_empty() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "nonexistent", 5).unwrap();
+        assert!(thoughts.is_empty());
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_case_insensitive() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "About Rust", "Rust", day(0));
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "RUST", 5).unwrap();
+        assert_eq!(thoughts.len(), 1);
+        assert_eq!(thoughts[0].content, "About Rust");
     }
 }

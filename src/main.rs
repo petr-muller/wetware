@@ -66,6 +66,9 @@ fn main() {
             EntityCommands::Rename { entity_name, new_name } => {
                 wetware::cli::entity_rename::execute(&entity_name, &new_name, &db_path)
             }
+            EntityCommands::Show { entity_name } => {
+                wetware::cli::entity_show::execute(&entity_name, &db_path, cli.color)
+            }
         },
     };
 
