@@ -4,4 +4,5 @@ mod test_edit_command;
 mod test_entities_command;
 mod test_entity_edit_command;
 mod test_entity_rename_command;
+mod test_entity_show_command;
 mod test_thoughts_command;
