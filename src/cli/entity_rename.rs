@@ -29,6 +29,13 @@ pub fn execute(entity_name: &str, new_name: &str, db_path: &Path) -> Result<(), 
         ));
     }
 
+    if new_name.contains(['[', ']', '(', ')']) {
+        return Err(ThoughtError::InvalidInput(
+            "New entity name cannot contain '[', ']', '(', or ')' (these are reserved for entity reference syntax)"
+                .to_string(),
+        ));
+    }
+
     let mut conn = get_connection(db_path)?;
     run_migrations(&conn)?;
 

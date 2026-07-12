@@ -15,6 +15,7 @@ Allow renaming an entity via `wet entity rename <old-name> <new-name>`. Since en
 - The rename (row update + all content rewrites) is atomic: if any step fails, nothing is changed.
 - Renaming to a name already used by a *different* entity fails with an error; no merge behavior.
 - Renaming to the same name, or only changing casing (e.g. `Sarah` -> `Sarah Smith` vs. `Sarah` -> `SARAH`), succeeds.
+- `new-name` cannot contain `[`, `]`, `(`, or `)` — these are reserved for entity reference syntax and would corrupt bracket markup in rewritten content if allowed through unescaped.
 
 ## Decisions
 
@@ -25,6 +26,7 @@ Allow renaming an entity via `wet entity rename <old-name> <new-name>`. Since en
 - **No persisted alias table**: consistent with the existing design (spec 004) where aliases are purely per-occurrence text, not a stored alternate-name registry. Rename does not introduce one.
 - **No entity-merge functionality**: renaming onto an existing different entity is rejected rather than merging the two entities' thoughts/descriptions together. Out of scope.
 - **Self-rename (casing-only) allowed**: the `entities.name` column is `UNIQUE COLLATE NOCASE`, so a naive collision check against that column would false-positive when renaming `Sarah` -> `SARAH`. The collision check instead compares entity IDs, allowing a row to be renamed to a re-cased version of itself.
+- **Reject bracket/paren characters in `new-name`**: `rewrite_entity_references` interpolates `new_name` directly into `[NewName]`/`(NewName)` bracket syntax. Since `new_name` comes straight from a CLI argument (unlike entity names created via `[Name]` parsing, which structurally can't contain these characters), it must be validated up front — otherwise a name like `Sarah]x` would corrupt previously well-formed bracket references in rewritten content on the next parse.
 
 ## CLI Interface
 

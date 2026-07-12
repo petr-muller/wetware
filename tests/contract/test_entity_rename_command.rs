@@ -74,3 +74,31 @@ fn test_entity_rename_nonexistent_entity() {
         result.stdout
     );
 }
+
+#[test]
+fn test_entity_rename_rejects_bracket_characters_in_new_name() {
+    let temp_db = setup_temp_db();
+
+    run_wet_command(&["add", "Meeting with [Sarah]"], Some(&temp_db));
+
+    for bad_name in ["Sarah]x", "[Sarah", "Sarah(x)", "Sarah)"] {
+        let result = run_wet_command(&["entity", "rename", "sarah", bad_name], Some(&temp_db));
+
+        assert_ne!(result.status, 0, "Command should fail for new name '{}'", bad_name);
+        assert!(
+            result.stderr.contains("cannot contain") || result.stdout.contains("cannot contain"),
+            "Should show reserved-character error for '{}'. stderr: {}, stdout: {}",
+            bad_name,
+            result.stderr,
+            result.stdout
+        );
+    }
+
+    // Original content must be untouched by the rejected attempts.
+    let thoughts_result = run_wet_command(&["thoughts"], Some(&temp_db));
+    assert!(
+        thoughts_result.stdout.contains("Sarah") && !thoughts_result.stdout.contains("Sarah]x"),
+        "Original content should be unchanged. Got: {}",
+        thoughts_result.stdout
+    );
+}
