@@ -109,6 +109,14 @@ Remove a description (use empty string or whitespace):
 wet entity edit rust --description ""
 ```
 
+### Rename an entity
+
+```bash
+wet entity rename rust Rustlang
+```
+
+Rewrites every stored reference to the entity's old name (in thought content and entity descriptions) to the new name. Existing links are preserved.
+
 ## Database
 
 By default, notes are stored in `wetware.db` in the current directory. You can specify a custom database location using the `WETWARE_DB` environment variable:
