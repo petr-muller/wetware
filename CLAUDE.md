@@ -4,6 +4,14 @@
 
 Wetware is a Rust project that helps track "thoughts" - brief snippets of information associated with dates and entities. It provides a CLI binary called `wet` for interacting with these thoughts.
 
+## Documentation
+
+Detailed system behavior, cross-system flows, and architectural rationale live in [`docs/`](docs/), routed
+through [`AGENTS.md`](AGENTS.md). Read the relevant `docs/systems/`/`docs/flows/` doc before changing a
+system's behavior, and update it in the same change if behavior, interfaces, data, or invariants change.
+See [`docs/README.md`](docs/README.md) for the full map and [`docs/architecture/decisions/`](docs/architecture/decisions/)
+for why past decisions were made.
+
 ## Build Commands
 
 - Build: `cargo build`
@@ -51,6 +59,8 @@ Domain model must not depend on CLI or persistence. Persistence is behind reposi
 
 ## Data Directory
 
+See [`docs/systems/storage.md`](docs/systems/storage.md) for full detail on connection handling, migrations, and schema.
+
 - Data directory at `~/.local/share/wetware/` (XDG data dir), overridable via `WETWARE_DATA_DIR` env var
 - Contains `config.toml` (TOML config) and `default.db` (SQLite database)
 - Database path overridable via `WETWARE_DB` env var (takes precedence over data dir for db)
@@ -58,20 +68,20 @@ Domain model must not depend on CLI or persistence. Persistence is behind reposi
 - Tables: `thoughts`, `entities` (with `description` column), `thought_entities` (junction)
 - Migrations in `src/storage/migrations/`
 
-## Feature Specs
-
-Feature specifications live in `specs/` as single markdown files (one per feature).
+## Documentation Workflow
 
 **Workflow for new features:**
-1. Use plan mode to create a new spec file in `specs/`
-2. Implement the feature following the spec
-3. Update existing specs if the new feature affects them
+1. Read the relevant `docs/systems/*.md` and `docs/flows/*.md` before designing the change.
+2. Use plan mode to design the implementation; for significant technical decisions, add an ADR under
+   `docs/architecture/decisions/` (see [`docs/architecture/README.md`](docs/architecture/README.md)).
+3. Implement the feature.
+4. Update the affected `docs/systems/`/`docs/flows/` docs in the same change.
 
 **Workflow for smaller behavior changes:**
-1. Modify the relevant existing spec in `specs/`
-2. Change the implementation to match
+1. Update the relevant `docs/systems/`/`docs/flows/` doc.
+2. Change the implementation to match.
 
-**Spec format:** Summary, Requirements, Decisions, CLI Interface, Edge Cases. Optional sections: Data Model, Status.
+Use [`docs/templates/`](docs/templates/) for the expected structure of a new system, flow, or ADR doc.
 
 ## Technology Preferences
 

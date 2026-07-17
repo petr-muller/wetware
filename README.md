@@ -61,13 +61,13 @@ Entity associations are automatically recalculated whenever content changes.
 ### List all notes
 
 ```bash
-wet notes
+wet thoughts
 ```
 
 ### Filter notes by entity
 
 ```bash
-wet notes --on Sarah
+wet thoughts --on Sarah
 ```
 
 ### List all entities
@@ -119,12 +119,16 @@ Rewrites every stored reference to the entity's old name (in thought content and
 
 ## Database
 
-By default, notes are stored in `wetware.db` in the current directory. You can specify a custom database location using the `WETWARE_DB` environment variable:
+By default, notes are stored in `default.db` inside wetware's data directory (`~/.local/share/wetware/` on
+Linux/XDG systems). You can override the entire data directory with `WETWARE_DATA_DIR`, or just the
+database path with `WETWARE_DB`:
 
 ```bash
 export WETWARE_DB=/path/to/my/notes.db
 wet add "My note"
 ```
+
+See [`docs/systems/storage.md`](docs/systems/storage.md) for full detail.
 
 ## Development
 
