@@ -25,11 +25,11 @@ None beyond the startup sequence below.
 
 ## How the system works
 
-`lib.rs` (12 lines) declares the crate's top-level modules (`cli`, `config`, `errors`, `input`, `models`,
-`services`, `storage`, `tui`) and re-exports `ThoughtError`, `Entity`, `SortOrder`, `Thought` at the crate
-root for convenient use in tests and downstream code.
+`lib.rs` declares the crate's top-level modules (`cli`, `config`, `errors`, `input`, `models`, `services`,
+`storage`, `tui`) and re-exports `ThoughtError`, `Entity`, `SortOrder`, `Thought` at the crate root for
+convenient use in tests and downstream code.
 
-`main.rs` (79 lines) is the startup sequence, in order:
+`main.rs` is the startup sequence, in order:
 
 1. Parse CLI arguments into `Cli` via `Cli::parse()` ([`cli.md`](cli.md)).
 2. Resolve the data directory: `WETWARE_DATA_DIR` env var if non-empty, else

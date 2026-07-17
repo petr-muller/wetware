@@ -14,6 +14,13 @@ could break if the system changes.
 - Avoid unsupported guesses. If something is hard to verify from the code, say so explicitly (e.g.
   "Unverified:" or "Assumed based on X, not confirmed").
 - Stay concise enough to read in full before making a change to that system.
+- Prefer conceptual, abstract language over incidental structural facts that drift on every unrelated
+  edit and add no explanatory value — file line counts, byte counts, or exact "N things" framing (e.g.
+  "the crate has 11 error variants") are the clearest examples: don't state them, since they're stale the
+  moment anyone touches the file and a reader can see the current count directly in the source. This is
+  different from documenting an actual behavioral constant (a size limit, a display cap, a timeout) — those
+  explain real behavior and belong in the doc; what to avoid is documenting the code's *shape* rather than
+  its *behavior*.
 
 ## Linking
 
