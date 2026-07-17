@@ -56,14 +56,28 @@ CREATE TABLE thought_entities (
 );
 CREATE INDEX idx_thought_entities_entity ON thought_entities(entity_id);
 CREATE INDEX idx_thought_entities_thought ON thought_entities(thought_id);
+
+CREATE TABLE entity_relations (
+    child_id INTEGER NOT NULL,
+    parent_id INTEGER NOT NULL,
+    PRIMARY KEY (child_id, parent_id),
+    FOREIGN KEY (child_id) REFERENCES entities(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES entities(id) ON DELETE CASCADE,
+    CHECK (child_id != parent_id)
+);
+CREATE INDEX idx_entity_relations_parent ON entity_relations(parent_id);
+CREATE INDEX idx_entity_relations_child ON entity_relations(child_id);
 ```
 
-A normalized, three-table shape: Thoughts and Entities are independent rows, linked many-to-many through
+A normalized shape: Thoughts and Entities are independent rows, linked many-to-many through
 `thought_entities`. Entity references inside `thoughts.content` and `entities.description` are stored as
 literal bracket-markup text (`[entity]` / `[alias](entity)`), re-parsed at read/write time rather than
 kept as a separate structured representation — see
 [`decisions/0001-networked-notes-schema.md`](decisions/0001-networked-notes-schema.md) and
 [`decisions/0004-entity-reference-aliases.md`](decisions/0004-entity-reference-aliases.md) for why.
+`entity_relations` is a directed parent/child edge table forming a DAG over entities — reachability
+(descendants of a given entity) is computed with a recursive CTE at read time, not a materialized
+closure table — see [`decisions/0012-entity-relations.md`](decisions/0012-entity-relations.md).
 
 Full detail (repository methods, migration mechanics) is in [`../systems/storage.md`](../systems/storage.md).
 
@@ -96,6 +110,7 @@ order they were made:
 | [0009](decisions/0009-config-command.md) | `wet config` with hardcoded per-key match arms |
 | [0010](decisions/0010-entity-rename.md) | Literal text rewrite on rename, ID-keyed links untouched |
 | [0011](decisions/0011-entity-show.md) | `wet entity show` detail view, full description + 5 latest thoughts |
+| [0012](decisions/0012-entity-relations.md) | Directed entity parent/child relations (DAG) with recursive-CTE reachability |
 
 Only ADRs with `status: Accepted` reflect current guidance — see each ADR's frontmatter.
 

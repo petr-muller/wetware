@@ -40,6 +40,8 @@ Variants, in `src/errors/thought_error.rs`:
 | `ThoughtNotFound(i64)` | An operation referenced a thought ID that doesn't exist. |
 | `FileError(#[from] std::io::Error)` | Any underlying filesystem error, auto-converted. |
 | `TuiError(String)` | A TUI-specific failure. |
+| `RelationCycle { child, parent }` | Adding an entity relation would create a cycle in the parent/child graph. |
+| `SelfRelation(String)` | An entity relation was attempted between an entity and itself. |
 
 `#[from]` on `StorageError` and `FileError` means `rusqlite::Error`/`std::io::Error` convert automatically
 via `?` — code that queries SQLite or touches the filesystem doesn't need explicit error mapping unless it

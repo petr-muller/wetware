@@ -46,5 +46,5 @@ rest of the TUI's read-only startup load.
 
 ## Related docs
 
-- [`../../flows/delete-thought.md`](../../flows/delete-thought.md)
+- [`../../systems/cli.md`](../../systems/cli.md)
 - [`../../systems/tui.md`](../../systems/tui.md)
