@@ -30,6 +30,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Esc => {
             if app.active_filter.is_some() {
                 app.active_filter = None;
+                app.active_filter_reachable.clear();
                 app.recompute_displayed_thoughts();
             } else {
                 app.should_quit = true;
@@ -140,6 +141,7 @@ fn handle_entity_picker_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Enter => {
             if let Some(&entity_idx) = matches.get(*selected) {
                 let entity_name = app.entities[entity_idx].canonical_name.clone();
+                app.active_filter_reachable = app.reachable_names(entity_idx);
                 app.active_filter = Some(entity_name);
                 app.mode = Mode::Normal;
                 app.recompute_displayed_thoughts();

@@ -4,6 +4,7 @@ use crate::services::color_mode::ColorMode;
 use crate::services::entity_styler::EntityStyler;
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
+use crate::storage::entity_relations_repository::EntityRelationsRepository;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
 use std::path::Path;
@@ -39,6 +40,20 @@ pub fn execute(entity_name: &str, db_path: &Path, color_mode: ColorMode) -> Resu
     if let Some(description) = &entity.description {
         println!();
         println!("{}", styler.render_content(description));
+    }
+
+    let parents = EntityRelationsRepository::list_parents(&conn, entity.id.unwrap())?;
+    let children = EntityRelationsRepository::list_children(&conn, entity.id.unwrap())?;
+
+    if !parents.is_empty() {
+        let names: Vec<_> = parents.iter().map(|e| e.canonical_name.as_str()).collect();
+        println!();
+        println!("Parents: {}", names.join(", "));
+    }
+    if !children.is_empty() {
+        let names: Vec<_> = children.iter().map(|e| e.canonical_name.as_str()).collect();
+        println!();
+        println!("Children: {}", names.join(", "));
     }
 
     println!();
@@ -96,6 +111,47 @@ mod tests {
 
         let entity = EntitiesRepository::find_by_name(&conn, "rust").unwrap().unwrap();
         assert!(entity.description.is_none());
+    }
+
+    #[test]
+    fn test_show_with_parents_and_children_succeeds() {
+        use crate::storage::entity_relations_repository::EntityRelationsRepository;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let conn = get_connection(&db_path).unwrap();
+        crate::storage::migrations::run_migrations(&conn).unwrap();
+
+        setup_entity(&conn, "amazon", None);
+        setup_entity(&conn, "aws", None);
+        setup_entity(&conn, "big tech", None);
+
+        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
+        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
+        let big_tech = EntitiesRepository::find_by_name(&conn, "big tech").unwrap().unwrap();
+        EntityRelationsRepository::add_relation(&conn, aws.id.unwrap(), amazon.id.unwrap()).unwrap();
+        EntityRelationsRepository::add_relation(&conn, amazon.id.unwrap(), big_tech.id.unwrap()).unwrap();
+        drop(conn);
+
+        let result = execute("amazon", &db_path, ColorMode::Never);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_show_without_relations_succeeds() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let conn = get_connection(&db_path).unwrap();
+        crate::storage::migrations::run_migrations(&conn).unwrap();
+
+        setup_entity(&conn, "rust", None);
+        drop(conn);
+
+        let result = execute("rust", &db_path, ColorMode::Never);
+        assert!(result.is_ok());
     }
 
     #[test]

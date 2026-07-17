@@ -101,16 +101,21 @@ impl ThoughtsRepository {
         Ok(())
     }
 
-    /// List thoughts filtered by entity name (case-insensitive)
+    /// List thoughts filtered by entity name (case-insensitive), including thoughts
+    /// linked to any entity transitively reachable via child relations (descendants).
     pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Thought>, ThoughtError> {
         let lowercase_name = entity_name.to_lowercase();
 
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT t.id, t.content, t.created_at
+            "WITH RECURSIVE reachable(id) AS (
+                 SELECT id FROM entities WHERE name = ?1
+                 UNION
+                 SELECT er.child_id FROM entity_relations er JOIN reachable r ON er.parent_id = r.id
+             )
+             SELECT DISTINCT t.id, t.content, t.created_at
              FROM thoughts t
              INNER JOIN thought_entities te ON t.id = te.thought_id
-             INNER JOIN entities e ON te.entity_id = e.id
-             WHERE e.name = ?1
+             INNER JOIN reachable r ON te.entity_id = r.id
              ORDER BY t.created_at ASC",
         )?;
 
@@ -134,7 +139,9 @@ impl ThoughtsRepository {
         Ok(thoughts)
     }
 
-    /// List the most recent thoughts linked to an entity (case-insensitive), newest first
+    /// List the most recent thoughts linked to an entity (case-insensitive), newest first,
+    /// including thoughts linked to any entity transitively reachable via child relations
+    /// (descendants).
     pub fn list_latest_by_entity(
         conn: &Connection,
         entity_name: &str,
@@ -143,11 +150,15 @@ impl ThoughtsRepository {
         let lowercase_name = entity_name.to_lowercase();
 
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT t.id, t.content, t.created_at
+            "WITH RECURSIVE reachable(id) AS (
+                 SELECT id FROM entities WHERE name = ?1
+                 UNION
+                 SELECT er.child_id FROM entity_relations er JOIN reachable r ON er.parent_id = r.id
+             )
+             SELECT DISTINCT t.id, t.content, t.created_at
              FROM thoughts t
              INNER JOIN thought_entities te ON t.id = te.thought_id
-             INNER JOIN entities e ON te.entity_id = e.id
-             WHERE e.name = ?1
+             INNER JOIN reachable r ON te.entity_id = r.id
              ORDER BY t.created_at DESC
              LIMIT ?2",
         )?;
@@ -421,5 +432,125 @@ mod tests {
         let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "RUST", 5).unwrap();
         assert_eq!(thoughts.len(), 1);
         assert_eq!(thoughts[0].content, "About Rust");
+    }
+
+    fn relate(conn: &Connection, child_name: &str, parent_name: &str) {
+        use crate::storage::entities_repository::EntitiesRepository;
+        use crate::storage::entity_relations_repository::EntityRelationsRepository;
+
+        let child_id = EntitiesRepository::find_by_name(conn, child_name)
+            .unwrap()
+            .unwrap()
+            .id
+            .unwrap();
+        let parent_id = EntitiesRepository::find_by_name(conn, parent_name)
+            .unwrap()
+            .unwrap()
+            .id
+            .unwrap();
+        EntityRelationsRepository::add_relation(conn, child_id, parent_id).unwrap();
+    }
+
+    #[test]
+    fn test_list_by_entity_no_relations_behaves_as_before() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "About Rust", "Rust", day(0));
+        save_linked_thought(&conn, "About Go", "Go", day(0));
+
+        let thoughts = ThoughtsRepository::list_by_entity(&conn, "rust").unwrap();
+        assert_eq!(thoughts.len(), 1);
+        assert_eq!(thoughts[0].content, "About Rust");
+    }
+
+    #[test]
+    fn test_list_by_entity_includes_descendant_thoughts() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "About Amazon", "Amazon", day(-1));
+        save_linked_thought(&conn, "About AWS", "AWS", day(0));
+        relate(&conn, "AWS", "Amazon");
+
+        let thoughts = ThoughtsRepository::list_by_entity(&conn, "amazon").unwrap();
+        let contents: Vec<_> = thoughts.iter().map(|t| t.content.as_str()).collect();
+        assert_eq!(contents, vec!["About Amazon", "About AWS"]);
+    }
+
+    #[test]
+    fn test_list_by_entity_thought_on_root_still_included() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        use crate::models::entity::Entity;
+        use crate::storage::entities_repository::EntitiesRepository;
+
+        save_linked_thought(&conn, "About Amazon", "Amazon", day(0));
+        EntitiesRepository::find_or_create(&conn, &Entity::new("AWS".to_string())).unwrap();
+        relate(&conn, "AWS", "Amazon");
+
+        let thoughts = ThoughtsRepository::list_by_entity(&conn, "amazon").unwrap();
+        assert_eq!(thoughts.len(), 1);
+        assert_eq!(thoughts[0].content, "About Amazon");
+    }
+
+    #[test]
+    fn test_list_by_entity_diamond_shape_no_duplicates() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Diamond: D is child of both B and C, both of which are children of A.
+        save_linked_thought(&conn, "About A", "A", day(-3));
+        save_linked_thought(&conn, "About B", "B", day(-2));
+        save_linked_thought(&conn, "About C", "C", day(-1));
+        save_linked_thought(&conn, "About D", "D", day(0));
+        relate(&conn, "B", "A");
+        relate(&conn, "C", "A");
+        relate(&conn, "D", "B");
+        relate(&conn, "D", "C");
+
+        let thoughts = ThoughtsRepository::list_by_entity(&conn, "a").unwrap();
+        assert_eq!(thoughts.len(), 4);
+        let d_count = thoughts.iter().filter(|t| t.content == "About D").count();
+        assert_eq!(d_count, 1);
+    }
+
+    #[test]
+    fn test_list_by_entity_unknown_entity_returns_empty() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let thoughts = ThoughtsRepository::list_by_entity(&conn, "nonexistent").unwrap();
+        assert!(thoughts.is_empty());
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_includes_descendant_thoughts() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "About Amazon", "Amazon", day(-1));
+        save_linked_thought(&conn, "About AWS", "AWS", day(0));
+        relate(&conn, "AWS", "Amazon");
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "amazon", 5).unwrap();
+        assert_eq!(thoughts.len(), 2);
+        assert_eq!(thoughts[0].content, "About AWS");
+        assert_eq!(thoughts[1].content, "About Amazon");
+    }
+
+    #[test]
+    fn test_list_latest_by_entity_limit_applies_across_descendants() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        save_linked_thought(&conn, "About Amazon", "Amazon", day(-1));
+        save_linked_thought(&conn, "About AWS", "AWS", day(0));
+        relate(&conn, "AWS", "Amazon");
+
+        let thoughts = ThoughtsRepository::list_latest_by_entity(&conn, "amazon", 1).unwrap();
+        assert_eq!(thoughts.len(), 1);
+        assert_eq!(thoughts[0].content, "About AWS");
     }
 }

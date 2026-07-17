@@ -1,5 +1,6 @@
 /// Database migrations module
 pub mod add_entity_descriptions_migration;
+pub mod entity_relations_migration;
 pub mod networked_notes_migration;
 
 use crate::errors::ThoughtError;
@@ -12,6 +13,9 @@ pub fn run_migrations(conn: &Connection) -> Result<(), ThoughtError> {
 
     // Run migration 002: entity descriptions
     add_entity_descriptions_migration::migrate_add_entity_descriptions(conn)?;
+
+    // Run migration 003: entity relations
+    entity_relations_migration::migrate(conn)?;
 
     Ok(())
 }

@@ -69,6 +69,12 @@ fn main() {
             EntityCommands::Show { entity_name } => {
                 wetware::cli::entity_show::execute(&entity_name, &db_path, cli.color)
             }
+            EntityCommands::Relate { entity_name, parent } => {
+                wetware::cli::entity_relate::execute_relate(&entity_name, &parent, &db_path)
+            }
+            EntityCommands::Unrelate { entity_name, parent } => {
+                wetware::cli::entity_relate::execute_unrelate(&entity_name, &parent, &db_path)
+            }
         },
     };
 

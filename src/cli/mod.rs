@@ -5,6 +5,7 @@ pub mod delete;
 pub mod edit;
 pub mod entities;
 pub mod entity_edit;
+pub mod entity_relate;
 pub mod entity_rename;
 pub mod entity_show;
 pub mod thoughts;
@@ -101,5 +102,21 @@ pub enum EntityCommands {
     Show {
         /// Entity name (case-insensitive)
         entity_name: String,
+    },
+    /// Mark an entity as a child of another entity
+    Relate {
+        /// Entity to mark as a child (case-insensitive)
+        entity_name: String,
+        /// Parent entity name (case-insensitive)
+        #[arg(long)]
+        parent: String,
+    },
+    /// Remove a parent/child relation between two entities
+    Unrelate {
+        /// Child entity name (case-insensitive)
+        entity_name: String,
+        /// Parent entity name (case-insensitive)
+        #[arg(long)]
+        parent: String,
     },
 }

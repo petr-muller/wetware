@@ -7,6 +7,7 @@ pub mod input;
 pub mod state;
 pub mod ui;
 
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -38,12 +39,17 @@ pub struct App {
     pub mode: Mode,
     /// Current sort direction
     pub sort_order: SortOrder,
-    /// Entity name currently filtering by (None = show all)
+    /// Entity name currently filtering by (None = show all), kept for display purposes
     pub active_filter: Option<String>,
+    /// Lowercase names of the filter entity and all its transitive descendants (via
+    /// child relations); thoughts referencing any of these names pass the filter
+    pub active_filter_reachable: HashSet<String>,
     /// Exit flag
     pub should_quit: bool,
     /// Path to the database for mutation operations
     pub db_path: Option<PathBuf>,
+    /// Parent entity id -> child entity ids, built from loaded relation edges
+    entity_children: HashMap<i64, Vec<i64>>,
 }
 
 impl App {
@@ -57,8 +63,10 @@ impl App {
             mode: Mode::Normal,
             sort_order,
             active_filter: None,
+            active_filter_reachable: HashSet::new(),
             should_quit: false,
             db_path: None,
+            entity_children: HashMap::new(),
         };
         app.recompute_displayed_thoughts();
         if !app.displayed_thoughts.is_empty() {
@@ -71,6 +79,39 @@ impl App {
     pub fn with_db_path(mut self, db_path: PathBuf) -> Self {
         self.db_path = Some(db_path);
         self
+    }
+
+    /// Load the entity relation graph (child_id, parent_id edges) so entity-picker
+    /// filtering can include transitive descendants.
+    pub fn with_relations(mut self, relations: Vec<(i64, i64)>) -> Self {
+        let mut entity_children: HashMap<i64, Vec<i64>> = HashMap::new();
+        for (child_id, parent_id) in relations {
+            entity_children.entry(parent_id).or_default().push(child_id);
+        }
+        self.entity_children = entity_children;
+        self
+    }
+
+    /// Lowercase names of `entities[root_idx]` and every entity transitively
+    /// reachable from it via child relations (descendants).
+    pub fn reachable_names(&self, root_idx: usize) -> HashSet<String> {
+        let mut visited_ids = HashSet::new();
+        let mut stack = vec![self.entities[root_idx].id.unwrap()];
+
+        while let Some(id) = stack.pop() {
+            if !visited_ids.insert(id) {
+                continue;
+            }
+            if let Some(children) = self.entity_children.get(&id) {
+                stack.extend(children.iter().copied());
+            }
+        }
+
+        self.entities
+            .iter()
+            .filter(|e| e.id.is_some_and(|id| visited_ids.contains(&id)))
+            .map(|e| e.name.clone())
+            .collect()
     }
 
     /// Delete the thought currently pending confirmation.
@@ -104,14 +145,15 @@ impl App {
 
     /// Recompute the displayed thoughts based on current filter and sort order.
     pub fn recompute_displayed_thoughts(&mut self) {
-        let mut indices: Vec<usize> = if let Some(ref filter_entity) = self.active_filter {
-            let filter_lower = filter_entity.to_lowercase();
+        let mut indices: Vec<usize> = if self.active_filter.is_some() {
             self.thoughts
                 .iter()
                 .enumerate()
                 .filter(|(_, thought)| {
                     let entities = entity_parser::extract_entities(&thought.content);
-                    entities.iter().any(|e| e.to_lowercase() == filter_lower)
+                    entities
+                        .iter()
+                        .any(|e| self.active_filter_reachable.contains(&e.to_lowercase()))
                 })
                 .map(|(i, _)| i)
                 .collect()
@@ -281,6 +323,7 @@ mod tests {
         ];
         let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
+        app.active_filter_reachable = ["sarah".to_string()].into_iter().collect();
         app.recompute_displayed_thoughts();
         assert_eq!(app.displayed_thoughts.len(), 2);
     }
@@ -293,10 +336,12 @@ mod tests {
         ];
         let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
+        app.active_filter_reachable = ["sarah".to_string()].into_iter().collect();
         app.recompute_displayed_thoughts();
         assert_eq!(app.displayed_thoughts.len(), 1);
 
         app.active_filter = None;
+        app.active_filter_reachable.clear();
         app.recompute_displayed_thoughts();
         assert_eq!(app.displayed_thoughts.len(), 2);
     }
@@ -394,6 +439,115 @@ mod tests {
         let conn = get_connection(&db_path).unwrap();
         let remaining = ThoughtsRepository::list_all(&conn).unwrap();
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn test_reachable_names_no_relations_returns_only_self() {
+        let entities = vec![make_entity("Amazon", None)];
+        let app = App::new(vec![], entities, SortOrder::Ascending);
+
+        let names = app.reachable_names(0);
+        assert_eq!(names, ["amazon".to_string()].into_iter().collect());
+    }
+
+    #[test]
+    fn test_reachable_names_multi_level_chain() {
+        let entities = vec![
+            Entity {
+                id: Some(1),
+                name: "amazon".to_string(),
+                canonical_name: "Amazon".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(2),
+                name: "aws".to_string(),
+                canonical_name: "AWS".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(3),
+                name: "ec2".to_string(),
+                canonical_name: "EC2".to_string(),
+                description: None,
+            },
+        ];
+
+        // AWS child-of Amazon, EC2 child-of AWS
+        let app = App::new(vec![], entities, SortOrder::Ascending).with_relations(vec![(2, 1), (3, 2)]);
+
+        let names = app.reachable_names(0);
+        assert_eq!(
+            names,
+            ["amazon".to_string(), "aws".to_string(), "ec2".to_string()]
+                .into_iter()
+                .collect()
+        );
+    }
+
+    #[test]
+    fn test_reachable_names_diamond_shape() {
+        let entities = vec![
+            Entity {
+                id: Some(1),
+                name: "a".to_string(),
+                canonical_name: "A".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(2),
+                name: "b".to_string(),
+                canonical_name: "B".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(3),
+                name: "c".to_string(),
+                canonical_name: "C".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(4),
+                name: "d".to_string(),
+                canonical_name: "D".to_string(),
+                description: None,
+            },
+        ];
+        // B, C child-of A; D child-of both B and C
+        let app = App::new(vec![], entities, SortOrder::Ascending).with_relations(vec![(2, 1), (3, 1), (4, 2), (4, 3)]);
+
+        let names = app.reachable_names(0);
+        assert_eq!(names, ["a", "b", "c", "d"].into_iter().map(String::from).collect());
+    }
+
+    #[test]
+    fn test_recompute_displayed_thoughts_includes_descendant_tagged_thoughts() {
+        let thoughts = vec![
+            make_thought("About [Amazon]", 1),
+            make_thought("About [AWS]", 0),
+            make_thought("Unrelated", 2),
+        ];
+        let entities = vec![
+            Entity {
+                id: Some(1),
+                name: "amazon".to_string(),
+                canonical_name: "Amazon".to_string(),
+                description: None,
+            },
+            Entity {
+                id: Some(2),
+                name: "aws".to_string(),
+                canonical_name: "AWS".to_string(),
+                description: None,
+            },
+        ];
+        let mut app = App::new(thoughts, entities, SortOrder::Ascending).with_relations(vec![(2, 1)]);
+
+        app.active_filter = Some("Amazon".to_string());
+        app.active_filter_reachable = app.reachable_names(0);
+        app.recompute_displayed_thoughts();
+
+        assert_eq!(app.displayed_thoughts.len(), 2);
     }
 
     #[test]

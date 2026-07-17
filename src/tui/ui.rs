@@ -575,6 +575,7 @@ mod tests {
         let thoughts = vec![make_thought("[Sarah] hello", 0)];
         let mut app = App::new(thoughts, vec![], SortOrder::Ascending);
         app.active_filter = Some("Sarah".to_string());
+        app.active_filter_reachable = ["sarah".to_string()].into_iter().collect();
         app.recompute_displayed_thoughts();
         let output = render_to_string(&app, 80, 10);
         assert!(output.contains("filtered: Sarah"));
