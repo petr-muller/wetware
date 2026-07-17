@@ -35,6 +35,14 @@ pub enum ThoughtError {
 
     #[error("TUI error: {0}")]
     TuiError(String),
+
+    #[error(
+        "Cannot make '{child}' a child of '{parent}': '{parent}' is already a descendant of '{child}' (would create a cycle)"
+    )]
+    RelationCycle { child: String, parent: String },
+
+    #[error("An entity cannot be its own parent: '{0}'")]
+    SelfRelation(String),
 }
 
 #[cfg(test)]

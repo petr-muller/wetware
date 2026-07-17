@@ -9,18 +9,23 @@ use crate::errors::ThoughtError;
 use crate::models::SortOrder;
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
+use crate::storage::entity_relations_repository::EntityRelationsRepository;
+use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
 use crate::tui::App;
 
 /// Launch the interactive TUI thought viewer.
 pub fn execute(db_path: &Path, sort_order: SortOrder) -> Result<(), ThoughtError> {
     let conn = get_connection(db_path)?;
+    run_migrations(&conn)?;
     let thoughts = ThoughtsRepository::list_all(&conn)?;
     let entities = EntitiesRepository::list_all(&conn)?;
+    let relations = EntityRelationsRepository::list_all_edges(&conn)?;
 
     let mut terminal = ratatui::init();
 
     let result = App::new(thoughts, entities, sort_order)
+        .with_relations(relations)
         .with_db_path(db_path.to_path_buf())
         .run(&mut terminal);
 
