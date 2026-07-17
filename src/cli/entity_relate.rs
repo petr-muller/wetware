@@ -84,133 +84,33 @@ pub fn execute_unrelate(entity_name: &str, parent_name: &str, db_path: &Path) ->
 mod tests {
     use super::*;
     use crate::models::entity::Entity;
-    use crate::storage::connection::get_memory_connection;
+    use tempfile::TempDir;
 
     fn setup_entity(conn: &Connection, name: &str) {
         let entity = Entity::new(name.to_string());
         EntitiesRepository::find_or_create(conn, &entity).unwrap();
     }
 
-    fn relate_in_memory(child: &str, parent: &str) -> (Connection, Result<(), ThoughtError>) {
-        let conn = get_memory_connection().unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, child);
-        setup_entity(&conn, parent);
-
-        let child_entity = EntitiesRepository::find_by_name(&conn, child).unwrap().unwrap();
-        let parent_entity = EntitiesRepository::find_by_name(&conn, parent).unwrap().unwrap();
-
-        if child_entity.id == parent_entity.id {
-            return (conn, Err(ThoughtError::SelfRelation(child.to_string())));
-        }
-
-        let would_cycle =
-            EntityRelationsRepository::would_create_cycle(&conn, child_entity.id.unwrap(), parent_entity.id.unwrap())
-                .unwrap();
-        if would_cycle {
-            return (
-                conn,
-                Err(ThoughtError::RelationCycle {
-                    child: child_entity.canonical_name,
-                    parent: parent_entity.canonical_name,
-                }),
-            );
-        }
-
-        let result =
-            EntityRelationsRepository::add_relation(&conn, child_entity.id.unwrap(), parent_entity.id.unwrap());
-        (conn, result)
-    }
-
-    #[test]
-    fn test_relate_creates_relation() {
-        let (conn, result) = relate_in_memory("AWS", "Amazon");
-        assert!(result.is_ok());
-
-        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
-        let children = EntityRelationsRepository::list_children(&conn, amazon.id.unwrap()).unwrap();
-        assert_eq!(children.len(), 1);
-        assert_eq!(children[0].canonical_name, "AWS");
-    }
-
-    #[test]
-    fn test_relate_self_relation_rejected() {
-        let (_conn, result) = relate_in_memory("Amazon", "Amazon");
-        assert!(matches!(result, Err(ThoughtError::SelfRelation(_))));
-    }
-
-    #[test]
-    fn test_relate_cycle_rejected() {
-        let conn = get_memory_connection().unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        setup_entity(&conn, "AWS");
-
-        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
-        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
-
-        EntityRelationsRepository::add_relation(&conn, aws.id.unwrap(), amazon.id.unwrap()).unwrap();
-
-        let would_cycle =
-            EntityRelationsRepository::would_create_cycle(&conn, amazon.id.unwrap(), aws.id.unwrap()).unwrap();
-        assert!(would_cycle);
-    }
-
-    #[test]
-    fn test_relate_idempotent() {
-        let (conn, first) = relate_in_memory("AWS", "Amazon");
-        assert!(first.is_ok());
-
-        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
-        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
-
-        let second = EntityRelationsRepository::add_relation(&conn, aws.id.unwrap(), amazon.id.unwrap());
-        assert!(second.is_ok());
-
-        let children = EntityRelationsRepository::list_children(&conn, amazon.id.unwrap()).unwrap();
-        assert_eq!(children.len(), 1);
-    }
-
-    #[test]
-    fn test_unrelate_removes_relation() {
-        let (conn, result) = relate_in_memory("AWS", "Amazon");
-        assert!(result.is_ok());
-
-        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
-        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
-
-        EntityRelationsRepository::remove_relation(&conn, aws.id.unwrap(), amazon.id.unwrap()).unwrap();
-
-        let children = EntityRelationsRepository::list_children(&conn, amazon.id.unwrap()).unwrap();
-        assert!(children.is_empty());
-    }
-
-    #[test]
-    fn test_unrelate_nonexistent_relation_is_noop() {
-        let conn = get_memory_connection().unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        setup_entity(&conn, "AWS");
-
-        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
-        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
-
-        let result = EntityRelationsRepository::remove_relation(&conn, aws.id.unwrap(), amazon.id.unwrap());
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_execute_relate_end_to_end() {
-        use tempfile::TempDir;
-
+    /// Create a temp-file-backed database with the given entities already present,
+    /// so tests exercise `execute_relate`/`execute_unrelate` themselves (the real
+    /// command functions) rather than reimplementing their logic against an
+    /// in-memory connection.
+    fn temp_db_with_entities(names: &[&str]) -> (TempDir, std::path::PathBuf) {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
 
         let conn = get_connection(&db_path).unwrap();
         run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        setup_entity(&conn, "AWS");
-        drop(conn);
+        for name in names {
+            setup_entity(&conn, name);
+        }
+
+        (temp_dir, db_path)
+    }
+
+    #[test]
+    fn test_execute_relate_creates_relation() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
 
         let result = execute_relate("AWS", "Amazon", &db_path);
         assert!(result.is_ok());
@@ -224,15 +124,7 @@ mod tests {
 
     #[test]
     fn test_execute_relate_missing_child_errors() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-
-        let conn = get_connection(&db_path).unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        drop(conn);
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon"]);
 
         let result = execute_relate("AWS", "Amazon", &db_path);
         assert!(matches!(result, Err(ThoughtError::EntityNotFound(name)) if name == "AWS"));
@@ -240,32 +132,36 @@ mod tests {
 
     #[test]
     fn test_execute_relate_missing_parent_errors() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-
-        let conn = get_connection(&db_path).unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "AWS");
-        drop(conn);
+        let (_temp_dir, db_path) = temp_db_with_entities(&["AWS"]);
 
         let result = execute_relate("AWS", "Amazon", &db_path);
         assert!(matches!(result, Err(ThoughtError::EntityNotFound(name)) if name == "Amazon"));
     }
 
     #[test]
-    fn test_execute_relate_cycle_rolls_back() {
-        use tempfile::TempDir;
+    fn test_execute_relate_self_relation_rejected() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon"]);
 
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let result = execute_relate("Amazon", "Amazon", &db_path);
+        assert!(matches!(result, Err(ThoughtError::SelfRelation(_))));
+    }
+
+    #[test]
+    fn test_execute_relate_idempotent() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
+
+        assert!(execute_relate("AWS", "Amazon", &db_path).is_ok());
+        assert!(execute_relate("AWS", "Amazon", &db_path).is_ok());
 
         let conn = get_connection(&db_path).unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        setup_entity(&conn, "AWS");
-        drop(conn);
+        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
+        let children = EntityRelationsRepository::list_children(&conn, amazon.id.unwrap()).unwrap();
+        assert_eq!(children.len(), 1);
+    }
+
+    #[test]
+    fn test_execute_relate_cycle_rolls_back() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
 
         execute_relate("AWS", "Amazon", &db_path).unwrap();
 
@@ -280,17 +176,8 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_unrelate_end_to_end() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-
-        let conn = get_connection(&db_path).unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        setup_entity(&conn, "AWS");
-        drop(conn);
+    fn test_execute_unrelate_removes_relation() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
 
         execute_relate("AWS", "Amazon", &db_path).unwrap();
         let result = execute_unrelate("AWS", "Amazon", &db_path);
@@ -303,16 +190,16 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_unrelate_nonexistent_relation_is_noop() {
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
+
+        let result = execute_unrelate("AWS", "Amazon", &db_path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_execute_unrelate_requires_both_entities_to_exist() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-
-        let conn = get_connection(&db_path).unwrap();
-        run_migrations(&conn).unwrap();
-        setup_entity(&conn, "Amazon");
-        drop(conn);
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon"]);
 
         let result = execute_unrelate("AWS", "Amazon", &db_path);
         assert!(matches!(result, Err(ThoughtError::EntityNotFound(name)) if name == "AWS"));
