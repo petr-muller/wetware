@@ -19,23 +19,24 @@ impl EntityAliasesRepository {
     /// empty/whitespace-only alias is rejected explicitly here rather than relying on
     /// the table's CHECK constraint alone.
     pub fn add_alias(conn: &Connection, entity_id: i64, alias: &str) -> Result<(), ThoughtError> {
-        if alias.trim().is_empty() {
+        let trimmed = alias.trim();
+        if trimmed.is_empty() {
             return Err(ThoughtError::InvalidInput("Alias cannot be empty".to_string()));
         }
 
         conn.execute(
             "INSERT OR IGNORE INTO entity_aliases (entity_id, alias) VALUES (?1, ?2)",
-            (entity_id, alias),
+            (entity_id, trimmed),
         )?;
         Ok(())
     }
 
     /// Remove `alias` from `entity_id` if present. Safe to call even if no such alias
-    /// is registered (no-op).
+    /// is registered (no-op). Trims `alias` first, matching `add_alias`'s storage form.
     pub fn remove_alias(conn: &Connection, entity_id: i64, alias: &str) -> Result<(), ThoughtError> {
         conn.execute(
             "DELETE FROM entity_aliases WHERE entity_id = ?1 AND alias = ?2",
-            (entity_id, alias),
+            (entity_id, alias.trim()),
         )?;
         Ok(())
     }
@@ -230,5 +231,34 @@ mod tests {
         let sarah = make_entity(&conn, "Sarah");
         let result = EntityAliasesRepository::add_alias(&conn, sarah, "");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_add_alias_trims_surrounding_whitespace() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah = make_entity(&conn, "Sarah");
+        EntityAliasesRepository::add_alias(&conn, sarah, "  sar  ").unwrap();
+
+        let aliases = EntityAliasesRepository::list_for_entity(&conn, sarah).unwrap();
+        assert_eq!(aliases, vec!["sar"]);
+
+        // A later lookup for the untrimmed form still matches, since it's stored trimmed.
+        let matches = EntityAliasesRepository::find_entities_by_alias(&conn, "sar").unwrap();
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_remove_alias_trims_surrounding_whitespace() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah = make_entity(&conn, "Sarah");
+        EntityAliasesRepository::add_alias(&conn, sarah, "sar").unwrap();
+        EntityAliasesRepository::remove_alias(&conn, sarah, "  sar  ").unwrap();
+
+        let aliases = EntityAliasesRepository::list_for_entity(&conn, sarah).unwrap();
+        assert!(aliases.is_empty());
     }
 }
