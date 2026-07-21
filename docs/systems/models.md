@@ -78,6 +78,9 @@ validation change here ripples everywhere.
 - Thought content is always non-empty and ≤10,000 characters by the time it reaches storage — enforced
   at construction, not at the storage layer.
 - `Entity::name` is always the lowercased form of `canonical_name`.
+- An entity may have zero or more registered aliases, but these are **not** an `Entity` struct field — they
+  live in a separate table/repository (`entity_aliases` / `EntityAliasesRepository`, see
+  [`storage.md`](storage.md)) and are only loaded on demand.
 
 ## Error handling
 

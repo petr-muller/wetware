@@ -249,3 +249,61 @@ fn test_list_all_entities_alphabetical() -> Result<(), ThoughtError> {
 
     Ok(())
 }
+
+#[test]
+fn test_add_command_bracket_mention_resolves_to_aliased_entity() {
+    use wetware::storage::entity_aliases_repository::EntityAliasesRepository;
+
+    let temp_dir = TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
+    run_migrations(&conn).unwrap();
+    let sarah_id =
+        EntitiesRepository::find_or_create(&conn, &wetware::models::entity::Entity::new("Sarah".to_string())).unwrap();
+    EntityAliasesRepository::add_alias(&conn, sarah_id, "sar").unwrap();
+    drop(conn);
+
+    let result = add::execute("Talked to [sar] again".to_string(), None, &db_path);
+    assert!(result.is_ok());
+
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
+    let entities = EntitiesRepository::list_all(&conn).unwrap();
+    // No new literal "sar" entity should have been created - only "Sarah" exists.
+    assert_eq!(entities.len(), 1);
+    assert_eq!(entities[0].canonical_name, "Sarah");
+
+    let thoughts = ThoughtsRepository::list_by_entity(&conn, "sarah").unwrap();
+    assert_eq!(thoughts.len(), 1);
+}
+
+#[test]
+fn test_add_command_ambiguous_alias_mention_skips_link_but_saves_thought() {
+    use wetware::storage::entity_aliases_repository::EntityAliasesRepository;
+
+    let temp_dir = TempDir::new().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
+    run_migrations(&conn).unwrap();
+    let sarah_id =
+        EntitiesRepository::find_or_create(&conn, &wetware::models::entity::Entity::new("Sarah".to_string())).unwrap();
+    let john_id =
+        EntitiesRepository::find_or_create(&conn, &wetware::models::entity::Entity::new("John".to_string())).unwrap();
+    EntityAliasesRepository::add_alias(&conn, sarah_id, "boss").unwrap();
+    EntityAliasesRepository::add_alias(&conn, john_id, "boss").unwrap();
+    drop(conn);
+
+    // The whole add still succeeds even though "boss" is ambiguous.
+    let result = add::execute("Mentioned [boss] today".to_string(), None, &db_path);
+    assert!(result.is_ok());
+
+    let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
+    // No new literal "boss" entity created.
+    let entities = EntitiesRepository::list_all(&conn).unwrap();
+    assert_eq!(entities.len(), 2);
+
+    // Neither Sarah nor John got linked to the new thought.
+    assert!(ThoughtsRepository::list_by_entity(&conn, "sarah").unwrap().is_empty());
+    assert!(ThoughtsRepository::list_by_entity(&conn, "john").unwrap().is_empty());
+}

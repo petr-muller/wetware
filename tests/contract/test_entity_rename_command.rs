@@ -60,6 +60,50 @@ fn test_entity_rename_collision_with_different_entity() {
 }
 
 #[test]
+fn test_entity_rename_rejects_collision_with_other_entitys_alias() {
+    let temp_db = setup_temp_db();
+
+    run_wet_command(&["add", "Meeting with [Sarah] and [John]"], Some(&temp_db));
+    run_wet_command(&["entity", "alias", "john", "--alias", "boss"], Some(&temp_db));
+
+    let result = run_wet_command(&["entity", "rename", "sarah", "boss"], Some(&temp_db));
+
+    assert_ne!(result.status, 0, "Command should fail");
+    assert!(
+        result.stderr.contains("already registered as an alias")
+            || result.stdout.contains("already registered as an alias"),
+        "Should show alias-collision error. stderr: {}, stdout: {}",
+        result.stderr,
+        result.stdout
+    );
+}
+
+#[test]
+fn test_entity_rename_to_own_alias_succeeds() {
+    let temp_db = setup_temp_db();
+
+    run_wet_command(&["add", "Meeting with [Sarah]"], Some(&temp_db));
+    run_wet_command(&["entity", "alias", "sarah", "--alias", "boss"], Some(&temp_db));
+
+    let result = run_wet_command(&["entity", "rename", "sarah", "boss"], Some(&temp_db));
+    assert_eq!(result.status, 0, "Renaming to the entity's own alias should succeed");
+}
+
+#[test]
+fn test_entity_rename_by_alias_lookup() {
+    let temp_db = setup_temp_db();
+
+    run_wet_command(&["add", "Meeting with [Sarah]"], Some(&temp_db));
+    run_wet_command(&["entity", "alias", "sarah", "--alias", "sar"], Some(&temp_db));
+
+    let result = run_wet_command(&["entity", "rename", "sar", "Sarah Smith"], Some(&temp_db));
+    assert_eq!(
+        result.status, 0,
+        "Should be able to rename an entity by referencing one of its aliases"
+    );
+}
+
+#[test]
 fn test_entity_rename_nonexistent_entity() {
     let temp_db = setup_temp_db();
 

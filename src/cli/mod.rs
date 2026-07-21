@@ -4,6 +4,7 @@ pub mod config;
 pub mod delete;
 pub mod edit;
 pub mod entities;
+pub mod entity_alias;
 pub mod entity_edit;
 pub mod entity_relate;
 pub mod entity_rename;
@@ -118,5 +119,21 @@ pub enum EntityCommands {
         /// Parent entity name (case-insensitive)
         #[arg(long)]
         parent: String,
+    },
+    /// Register an alternate name for an entity
+    Alias {
+        /// Entity name (case-insensitive; may itself be an existing alias)
+        entity_name: String,
+        /// Alias to register for this entity
+        #[arg(long)]
+        alias: String,
+    },
+    /// Remove a previously-registered alias from an entity
+    Unalias {
+        /// Entity name (case-insensitive; may itself be an existing alias)
+        entity_name: String,
+        /// Alias to remove
+        #[arg(long)]
+        alias: String,
     },
 }

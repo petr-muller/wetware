@@ -8,7 +8,7 @@ use rusqlite::Connection;
 use std::path::Path;
 
 fn resolve_entity(conn: &Connection, name: &str) -> Result<crate::models::entity::Entity, ThoughtError> {
-    let entity = EntitiesRepository::find_by_name(conn, name)?;
+    let entity = EntitiesRepository::resolve(conn, name)?;
     entity.ok_or_else(|| {
         eprintln!("Error: Entity '{}' not found", name);
         eprintln!();
@@ -106,6 +106,28 @@ mod tests {
         }
 
         (temp_dir, db_path)
+    }
+
+    #[test]
+    fn test_execute_relate_resolves_alias_on_both_sides() {
+        use crate::storage::entity_aliases_repository::EntityAliasesRepository;
+
+        let (_temp_dir, db_path) = temp_db_with_entities(&["Amazon", "AWS"]);
+
+        let conn = get_connection(&db_path).unwrap();
+        let amazon = EntitiesRepository::find_by_name(&conn, "amazon").unwrap().unwrap();
+        let aws = EntitiesRepository::find_by_name(&conn, "aws").unwrap().unwrap();
+        EntityAliasesRepository::add_alias(&conn, amazon.id.unwrap(), "bigco").unwrap();
+        EntityAliasesRepository::add_alias(&conn, aws.id.unwrap(), "cloud").unwrap();
+        drop(conn);
+
+        let result = execute_relate("cloud", "bigco", &db_path);
+        assert!(result.is_ok());
+
+        let conn = get_connection(&db_path).unwrap();
+        let children = EntityRelationsRepository::list_children(&conn, amazon.id.unwrap()).unwrap();
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].canonical_name, "AWS");
     }
 
     #[test]

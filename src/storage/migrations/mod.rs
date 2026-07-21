@@ -1,5 +1,6 @@
 /// Database migrations module
 pub mod add_entity_descriptions_migration;
+pub mod entity_aliases_migration;
 pub mod entity_relations_migration;
 pub mod networked_notes_migration;
 
@@ -16,6 +17,9 @@ pub fn run_migrations(conn: &Connection) -> Result<(), ThoughtError> {
 
     // Run migration 003: entity relations
     entity_relations_migration::migrate(conn)?;
+
+    // Run migration 004: entity aliases
+    entity_aliases_migration::migrate(conn)?;
 
     Ok(())
 }
@@ -42,6 +46,7 @@ mod tests {
         assert!(tables.contains(&"thoughts".to_string()));
         assert!(tables.contains(&"entities".to_string()));
         assert!(tables.contains(&"thought_entities".to_string()));
+        assert!(tables.contains(&"entity_aliases".to_string()));
 
         // Verify description column exists in entities table
         let description_col_exists: bool = conn

@@ -43,6 +43,16 @@ pub enum ThoughtError {
 
     #[error("An entity cannot be its own parent: '{0}'")]
     SelfRelation(String),
+
+    #[error("'{alias}' matches multiple entities ({})", entities.join(", "))]
+    AmbiguousAlias { alias: String, entities: Vec<String> },
+
+    #[error("Cannot rename '{old}' to '{new}': '{new}' is already registered as an alias of '{existing_entity}'")]
+    RenameCollidesWithAlias {
+        old: String,
+        new: String,
+        existing_entity: String,
+    },
 }
 
 #[cfg(test)]

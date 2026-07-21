@@ -3,8 +3,9 @@
 ## Purpose
 
 Pure business-logic helpers with no I/O or persistence dependencies — entity-reference parsing, entity
-color styling, description-preview formatting, and terminal color-mode detection. Reused by both the CLI
-and the TUI.
+color styling, description-preview formatting, and terminal color-mode detection — plus one small
+DB-touching helper, `entity_resolution`, that ties `[bracket]` mention extraction to the persisted alias
+registry. Reused by both the CLI and the TUI.
 
 ## Questions this doc answers
 
@@ -15,7 +16,8 @@ and the TUI.
 
 ## Scope
 
-`src/services/color_mode.rs`, `entity_parser.rs`, `entity_styler.rs`, `description_formatter.rs`.
+`src/services/color_mode.rs`, `entity_parser.rs`, `entity_styler.rs`, `description_formatter.rs`,
+`entity_resolution.rs`.
 
 ## Non-scope
 
@@ -47,6 +49,23 @@ needs to find or rewrite entity references in text:
   aliased `[Alias](old)` → `[Alias](New)`, leaving alias display text and unrelated references untouched.
   Used by entity rename (see [`flows/entity-rename.md`](../flows/entity-rename.md)).
 
+Note: this module's "aliased syntax" (`[alias](entity)`) is unrelated to the persisted alias registry
+described below and in [`storage.md`](storage.md) — it's free-form, per-occurrence *display* text that
+never touches `entity_aliases`, and `extract_entities` always resolves it to the parenthesized *target*
+name directly, without consulting the registry. See
+[`../architecture/decisions/0004-entity-reference-aliases.md`](../architecture/decisions/0004-entity-reference-aliases.md)
+and [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)
+for the distinction.
+
+**`entity_resolution.rs`** — `resolve_or_create_entity(conn, name) -> Result<Option<i64>, ThoughtError>`,
+the one function in this module that touches storage. Used by `add`/`edit`/`entity edit` wherever they
+used to unconditionally `find_or_create` an extracted `[bracket]` name: it resolves `name` against
+canonical names and registered aliases first (`EntitiesRepository::resolve`), only falling back to
+creating a brand-new literal entity when nothing matches. If `name` is an alias registered to more than
+one entity, it prints a warning to stderr and returns `Ok(None)` — the mention is skipped (not linked to
+any entity, no new entity created) without failing the caller's overall command. See
+[`../flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md).
+
 **`entity_styler.rs`** — `EntityStyler { color_map, next_color, use_colors }`. Cycles through a 12-color
 palette (excluding black/white). `EntityStyler::new(use_colors)`, `render_content(&mut self, content) ->
 String` — strips entity markup and, if `use_colors`, colors+bolds each entity span. Color assignment is
@@ -76,8 +95,11 @@ rewrite_entity_references}`, `EntityStyler::{new, render_content}`,
 
 ## Dependencies
 
-`errors` (indirectly), `regex`, `owo-colors`, `terminal_size`. No dependency on `storage` or `cli` — this
-is what makes these services reusable by the TUI as well.
+`errors` (indirectly), `regex`, `owo-colors`, `terminal_size`. No dependency on `storage` or `cli` for
+`color_mode`/`entity_parser`/`entity_styler`/`description_formatter` — this is what makes those services
+reusable by the TUI as well. `entity_resolution` is the one exception: it depends on `storage` directly
+(`EntitiesRepository`, `EntityAliasesRepository`) since resolving a name against the alias registry
+requires a database read.
 
 ## Downstream effects
 
@@ -132,3 +154,5 @@ bare references, nested-looking brackets) and the preview pipeline's truncation 
 - [`cli.md`](cli.md), [`tui.md`](tui.md) — consumers.
 - [`flows/entity-rename.md`](../flows/entity-rename.md)
 - [Glossary: Entity Reference, Alias, Color Mode, Description Preview](../glossary.md)
+- [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)
+- [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)

@@ -1,8 +1,7 @@
 /// Add command implementation
 use crate::errors::ThoughtError;
-use crate::models::entity::Entity;
 use crate::models::thought::Thought;
-use crate::services::entity_parser;
+use crate::services::{entity_parser, entity_resolution};
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
@@ -35,9 +34,9 @@ pub fn execute(content: String, date: Option<String>, db_path: &Path) -> Result<
     // Extract and save entities
     let entity_names = entity_parser::extract_unique_entities(&content);
     for entity_name in &entity_names {
-        let entity = Entity::new(entity_name.clone());
-        let entity_id = EntitiesRepository::find_or_create(&conn, &entity)?;
-        EntitiesRepository::link_to_thought(&conn, entity_id, thought_id)?;
+        if let Some(entity_id) = entity_resolution::resolve_or_create_entity(&conn, entity_name)? {
+            EntitiesRepository::link_to_thought(&conn, entity_id, thought_id)?;
+        }
     }
 
     // Success message with entity count
