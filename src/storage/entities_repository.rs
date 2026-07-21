@@ -56,6 +56,38 @@ impl EntitiesRepository {
         Ok(entity)
     }
 
+    /// Resolve a user-supplied name to a single entity, consulting canonical names
+    /// first and aliases only as a fallback.
+    ///
+    /// A canonical-name match (case-insensitive) always wins outright, even if some
+    /// other entity also has this name registered as one of its aliases (that other
+    /// entity's alias is simply shadowed). If there is no canonical match, aliases
+    /// are consulted: no match returns `Ok(None)`, exactly one match returns that
+    /// entity, and more than one match (the same alias registered to different
+    /// entities) returns `Err(ThoughtError::AmbiguousAlias)` rather than silently
+    /// picking one.
+    pub fn resolve(conn: &Connection, name: &str) -> Result<Option<Entity>, ThoughtError> {
+        if let Some(entity) = Self::find_by_name(conn, name)? {
+            return Ok(Some(entity));
+        }
+
+        let mut matches =
+            crate::storage::entity_aliases_repository::EntityAliasesRepository::find_entities_by_alias(conn, name)?;
+
+        match matches.len() {
+            0 => Ok(None),
+            1 => Ok(matches.pop()),
+            _ => {
+                let mut names: Vec<String> = matches.into_iter().map(|e| e.canonical_name).collect();
+                names.sort();
+                Err(ThoughtError::AmbiguousAlias {
+                    alias: name.to_string(),
+                    entities: names,
+                })
+            }
+        }
+    }
+
     /// List all entities in alphabetical order
     pub fn list_all(conn: &Connection) -> Result<Vec<Entity>, ThoughtError> {
         let mut stmt =
@@ -148,6 +180,7 @@ impl EntitiesRepository {
 mod tests {
     use super::*;
     use crate::storage::connection::get_memory_connection;
+    use crate::storage::entity_aliases_repository::EntityAliasesRepository;
     use crate::storage::migrations::run_migrations;
 
     #[test]
@@ -413,5 +446,74 @@ mod tests {
         // Original entity untouched
         let found = EntitiesRepository::find_by_name(&conn, "sarah").unwrap();
         assert!(found.is_some());
+    }
+
+    #[test]
+    fn test_resolve_canonical_name_match() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("Sarah".to_string());
+        EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+
+        let resolved = EntitiesRepository::resolve(&conn, "sarah").unwrap().unwrap();
+        assert_eq!(resolved.canonical_name, "Sarah");
+    }
+
+    #[test]
+    fn test_resolve_canonical_wins_over_conflicting_alias() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah = Entity::new("Sarah".to_string());
+        EntitiesRepository::find_or_create(&conn, &sarah).unwrap();
+
+        let john_id = EntitiesRepository::find_or_create(&conn, &Entity::new("John".to_string())).unwrap();
+        // "sarah" is registered as an alias of John, but Sarah's own canonical name wins.
+        EntityAliasesRepository::add_alias(&conn, john_id, "sarah").unwrap();
+
+        let resolved = EntitiesRepository::resolve(&conn, "sarah").unwrap().unwrap();
+        assert_eq!(resolved.canonical_name, "Sarah");
+    }
+
+    #[test]
+    fn test_resolve_unambiguous_alias_match() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah_id = EntitiesRepository::find_or_create(&conn, &Entity::new("Sarah".to_string())).unwrap();
+        EntityAliasesRepository::add_alias(&conn, sarah_id, "sar").unwrap();
+
+        let resolved = EntitiesRepository::resolve(&conn, "sar").unwrap().unwrap();
+        assert_eq!(resolved.canonical_name, "Sarah");
+    }
+
+    #[test]
+    fn test_resolve_no_match_returns_none() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let resolved = EntitiesRepository::resolve(&conn, "nonexistent").unwrap();
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn test_resolve_ambiguous_alias_errors() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah_id = EntitiesRepository::find_or_create(&conn, &Entity::new("Sarah".to_string())).unwrap();
+        let john_id = EntitiesRepository::find_or_create(&conn, &Entity::new("John".to_string())).unwrap();
+        EntityAliasesRepository::add_alias(&conn, sarah_id, "boss").unwrap();
+        EntityAliasesRepository::add_alias(&conn, john_id, "boss").unwrap();
+
+        let result = EntitiesRepository::resolve(&conn, "boss");
+        match result {
+            Err(ThoughtError::AmbiguousAlias { alias, entities }) => {
+                assert_eq!(alias, "boss");
+                assert_eq!(entities, vec!["John".to_string(), "Sarah".to_string()]);
+            }
+            _ => panic!("Expected AmbiguousAlias error"),
+        }
     }
 }

@@ -2,9 +2,9 @@
 
 ## Purpose
 
-SQLite persistence for Thoughts and Entities: connection handling, schema migrations, and the two
-repositories (`ThoughtsRepository`, `EntitiesRepository`) every other system goes through to read or
-write data.
+SQLite persistence for Thoughts and Entities: connection handling, schema migrations, and the
+repositories (`ThoughtsRepository`, `EntitiesRepository`, `EntityRelationsRepository`,
+`EntityAliasesRepository`) every other system goes through to read or write data.
 
 ## Questions this doc answers
 
@@ -16,7 +16,7 @@ write data.
 ## Scope
 
 `src/storage/connection.rs`, `data_dir.rs`, `migrations/`, `entities_repository.rs`,
-`thoughts_repository.rs`, `entity_relations_repository.rs`.
+`thoughts_repository.rs`, `entity_relations_repository.rs`, `entity_aliases_repository.rs`.
 
 ## Non-scope
 
@@ -48,8 +48,9 @@ a real user's data. `ensure_data_dir(path)` creates the directory. `default_db_p
 1. `networked_notes_migration::migrate` — creates the base schema (below).
 2. `add_entity_descriptions_migration::migrate_add_entity_descriptions` — adds `entities.description`.
 3. `entity_relations_migration::migrate` — creates `entity_relations` (below).
+4. `entity_aliases_migration::migrate` — creates `entity_aliases` (below).
 
-Both are **idempotent**: `CREATE TABLE IF NOT EXISTS` and a `pragma_table_info` column-existence check
+All are **idempotent**: `CREATE TABLE IF NOT EXISTS` and a `pragma_table_info` column-existence check
 before adding a column. There is **no migration-version tracking table** — idempotency is the entire
 safety net, and the pattern is strictly additive (no down-migrations). Because every command calls
 `run_migrations` before doing anything else, the schema is always brought up to date on first use, at the
@@ -92,7 +93,22 @@ CREATE TABLE IF NOT EXISTS entity_relations (
 );
 CREATE INDEX IF NOT EXISTS idx_entity_relations_parent ON entity_relations(parent_id);
 CREATE INDEX IF NOT EXISTS idx_entity_relations_child ON entity_relations(child_id);
+
+CREATE TABLE IF NOT EXISTS entity_aliases (
+    entity_id INTEGER NOT NULL,
+    alias TEXT NOT NULL COLLATE NOCASE CHECK(length(trim(alias)) > 0),
+    PRIMARY KEY (entity_id, alias),
+    FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_entity_aliases_alias ON entity_aliases(alias);
+CREATE INDEX IF NOT EXISTS idx_entity_aliases_entity ON entity_aliases(entity_id);
 ```
+
+`entity_aliases` associates alternate names with an entity; `PRIMARY KEY (entity_id, alias)` makes an
+alias unique *per entity*, not globally — the same alias string may be registered to more than one entity,
+so resolution must handle ambiguity (see [`../flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)
+and [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)).
+`alias` is `COLLATE NOCASE`, matching `entities.name`'s case-insensitivity convention.
 
 `entity_relations` is a directed edge table (`child_id` → `parent_id`) forming a DAG — an entity may have
 multiple parents. The `CHECK (child_id != parent_id)` constraint prevents direct self-relations at the DB
@@ -111,19 +127,33 @@ for why this normalized shape was chosen.
 objects:
 
 `EntitiesRepository`: `find_or_create`, `link_to_thought` (`INSERT OR IGNORE`), `find_by_name`
-(case-insensitive), `list_all` (alphabetical by `canonical_name`), `unlink_all_from_thought`,
-`update_description` (errors `EntityNotFound` if absent), `rename` (updates `name`+`canonical_name`,
-errors `EntityNotFound`/`EntityAlreadyExists`; the collision check compares entity IDs, so a self-rename
-or case-only casing change is allowed).
+(case-insensitive, canonical name only), `resolve` (canonical name first, falling back to
+`EntityAliasesRepository::find_entities_by_alias` — see
+[`../flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md); returns
+`Err(AmbiguousAlias)` if the alias matches more than one entity), `list_all` (alphabetical by
+`canonical_name`), `unlink_all_from_thought`, `update_description` (errors `EntityNotFound` if absent),
+`rename` (updates `name`+`canonical_name`, errors `EntityNotFound`/`EntityAlreadyExists`; the collision
+check compares entity IDs, so a self-rename or case-only casing change is allowed). Most call sites that
+used to call `find_by_name` for user-facing name lookups now call `resolve` instead, so they also accept
+aliases; `find_by_name` itself is kept for call sites that deliberately want canonical-only semantics
+(e.g. `entity rename`'s new-name collision check).
+
+`EntityAliasesRepository`: `add_alias(entity_id, alias)` (`INSERT OR IGNORE` — idempotent; rejects an
+empty/whitespace-only alias explicitly, since `INSERT OR IGNORE` would otherwise silently suppress the
+table's `CHECK` constraint too), `remove_alias` (`DELETE` — idempotent/no-op-safe), `list_for_entity`
+(alphabetical), `find_entities_by_alias` (case-insensitive; may return more than one entity, since aliases
+are unique per entity, not globally).
 
 `ThoughtsRepository`: `save` (stores `created_at` as an RFC3339 string), `get_by_id`, `list_all`
 (chronological ascending), `update` (errors `ThoughtNotFound` if zero rows affected), `delete` (errors
 `ThoughtNotFound` if zero rows affected; relies on `ON DELETE CASCADE` for `thought_entities` cleanup),
 `list_by_entity`, `list_latest_by_entity(limit)` (joins `thought_entities`/`entities`, `ORDER BY
-created_at DESC LIMIT`). **Both `list_by_entity` and `list_latest_by_entity` are reachability-aware**: each
-opens with a `WITH RECURSIVE reachable(id) AS (...)` CTE that starts at the named entity and follows
-`entity_relations` child edges downward, then joins `thought_entities` against that CTE instead of
-against a single entity ID directly — so both return thoughts tagged on the named entity *and* every
+created_at DESC LIMIT`). **Both `list_by_entity` and `list_latest_by_entity` are reachability- and
+alias-aware**: each first resolves the given name via `EntitiesRepository::resolve` (returning empty
+results for an unresolved name, or propagating `AmbiguousAlias` if the name matches more than one entity's
+alias), then seeds a `WITH RECURSIVE reachable(id) AS (...)` CTE with the resolved entity's id and follows
+`entity_relations` child edges downward from there, joining `thought_entities` against that CTE instead of
+against a single entity ID directly — so both return thoughts tagged on the resolved entity *and* every
 entity transitively reachable from it via child relations (its descendants), with no separate round trip
 or dynamic `IN (...)` list. `DISTINCT` in the `SELECT` prevents a thought reachable via more than one path
 in a diamond-shaped DAG from appearing twice.
@@ -164,7 +194,8 @@ The SQLite database file at the resolved db path (default `<data_dir>/default.db
 ## Interfaces and entry points
 
 `get_connection`, `get_memory_connection`, `resolve_data_dir`, `ensure_data_dir`, `default_db_path_in`,
-`run_migrations`, `EntitiesRepository::*`, `ThoughtsRepository::*`, `EntityRelationsRepository::*`.
+`run_migrations`, `EntitiesRepository::*`, `ThoughtsRepository::*`, `EntityRelationsRepository::*`,
+`EntityAliasesRepository::*`.
 
 ## Dependencies
 
@@ -190,7 +221,9 @@ requires a new, idempotent migration — never edit an existing migration once i
 
 `update`/`delete` on `ThoughtsRepository` return `ThoughtError::ThoughtNotFound` when zero rows are
 affected (not a SQLite-level error — checked explicitly). `EntitiesRepository::rename`/
-`update_description` return `EntityNotFound`/`EntityAlreadyExists` similarly.
+`update_description` return `EntityNotFound`/`EntityAlreadyExists` similarly. `EntitiesRepository::resolve`
+returns `AmbiguousAlias` when a name matches more than one entity's registered alias, rather than picking
+one arbitrarily.
 
 ## Security and privacy notes
 
@@ -227,6 +260,8 @@ migrations use internally to check for existing columns, useful for manually ver
 - [`src/storage/thoughts_repository.rs`](../../src/storage/thoughts_repository.rs)
 - [`src/storage/entity_relations_repository.rs`](../../src/storage/entity_relations_repository.rs)
 - [`src/storage/migrations/entity_relations_migration.rs`](../../src/storage/migrations/entity_relations_migration.rs)
+- [`src/storage/entity_aliases_repository.rs`](../../src/storage/entity_aliases_repository.rs)
+- [`src/storage/migrations/entity_aliases_migration.rs`](../../src/storage/migrations/entity_aliases_migration.rs)
 
 ## Related docs
 
@@ -235,3 +270,5 @@ migrations use internally to check for existing columns, useful for manually ver
 - [`../architecture/decisions/0001-networked-notes-schema.md`](../architecture/decisions/0001-networked-notes-schema.md)
 - [`../architecture/decisions/0007-data-directory.md`](../architecture/decisions/0007-data-directory.md)
 - [`../architecture/decisions/0012-entity-relations.md`](../architecture/decisions/0012-entity-relations.md)
+- [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)
+- [`../flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)

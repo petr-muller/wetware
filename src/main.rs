@@ -75,6 +75,12 @@ fn main() {
             EntityCommands::Unrelate { entity_name, parent } => {
                 wetware::cli::entity_relate::execute_unrelate(&entity_name, &parent, &db_path)
             }
+            EntityCommands::Alias { entity_name, alias } => {
+                wetware::cli::entity_alias::execute_alias(&entity_name, &alias, &db_path)
+            }
+            EntityCommands::Unalias { entity_name, alias } => {
+                wetware::cli::entity_alias::execute_unalias(&entity_name, &alias, &db_path)
+            }
         },
     };
 

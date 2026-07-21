@@ -3,6 +3,7 @@ use crate::errors::ThoughtError;
 use crate::services::entity_parser::rewrite_entity_references;
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
+use crate::storage::entity_aliases_repository::EntityAliasesRepository;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
 use std::path::Path;
@@ -39,7 +40,7 @@ pub fn execute(entity_name: &str, new_name: &str, db_path: &Path) -> Result<(), 
     let mut conn = get_connection(db_path)?;
     run_migrations(&conn)?;
 
-    let entity = EntitiesRepository::find_by_name(&conn, entity_name)?;
+    let entity = EntitiesRepository::resolve(&conn, entity_name)?;
     let Some(entity) = entity else {
         eprintln!("Error: Entity '{}' not found", entity_name);
         eprintln!();
@@ -53,6 +54,20 @@ pub fn execute(entity_name: &str, new_name: &str, db_path: &Path) -> Result<(), 
     {
         eprintln!("Error: Entity '{}' already exists", new_name);
         return Err(ThoughtError::EntityAlreadyExists(new_name.to_string()));
+    }
+
+    // Renaming to a name that's already registered as some *other* entity's alias
+    // would silently shadow that alias in `resolve()` (canonical names always win),
+    // making it permanently unreachable via alias lookup with no visible signal.
+    if let Some(other) = EntityAliasesRepository::find_entities_by_alias(&conn, new_name)?
+        .into_iter()
+        .find(|e| e.id != entity.id)
+    {
+        return Err(ThoughtError::RenameCollidesWithAlias {
+            old: entity_name.to_string(),
+            new: new_name.to_string(),
+            existing_entity: other.canonical_name,
+        });
     }
 
     let tx = conn.transaction()?;

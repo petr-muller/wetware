@@ -30,8 +30,20 @@ The bracket markup used inside Thought content and Entity descriptions to link t
 ## Alias
 
 The display text in an aliased Entity Reference `[alias](entity)` — shown in place of the entity's name,
-while the reference still resolves to and links the named entity. See
+while the reference still resolves to and links the named entity. Not to be confused with **Known Alias**
+below — this is free-form, per-occurrence display text, not a persisted association. See
 [`architecture/decisions/0004-entity-reference-aliases.md`](architecture/decisions/0004-entity-reference-aliases.md).
+
+## Known Alias
+
+A persisted alternate name registered for an Entity (`wet entity alias`/`unalias`), resolving to that
+Entity anywhere a name is looked up — filtering, `entity show`, and `[bracket]` mentions alike. Unique per
+entity, not globally: the same alias string may be registered to more than one Entity, in which case
+resolving it is ambiguous and errors rather than guessing. Not to be confused with the pre-existing
+**Alias** term above (a different, unrelated concept despite the shared word). See
+[`systems/storage.md`](systems/storage.md),
+[`flows/entity-alias-resolution.md`](flows/entity-alias-resolution.md), and
+[`architecture/decisions/0013-entity-aliases.md`](architecture/decisions/0013-entity-aliases.md).
 
 ## Description Preview
 

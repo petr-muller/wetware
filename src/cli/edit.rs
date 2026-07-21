@@ -1,8 +1,7 @@
 /// Edit command implementation
 use crate::errors::ThoughtError;
 use crate::input::editor;
-use crate::models::entity::Entity;
-use crate::services::entity_parser;
+use crate::services::{entity_parser, entity_resolution};
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
@@ -104,9 +103,9 @@ pub fn execute(
         EntitiesRepository::unlink_all_from_thought(&tx, id)?;
         let entity_names = entity_parser::extract_unique_entities(final_content);
         for entity_name in &entity_names {
-            let entity = Entity::new(entity_name.clone());
-            let entity_id = EntitiesRepository::find_or_create(&tx, &entity)?;
-            EntitiesRepository::link_to_thought(&tx, entity_id, id)?;
+            if let Some(entity_id) = entity_resolution::resolve_or_create_entity(&tx, entity_name)? {
+                EntitiesRepository::link_to_thought(&tx, entity_id, id)?;
+            }
         }
     }
 

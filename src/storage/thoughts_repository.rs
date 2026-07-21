@@ -101,14 +101,18 @@ impl ThoughtsRepository {
         Ok(())
     }
 
-    /// List thoughts filtered by entity name (case-insensitive), including thoughts
-    /// linked to any entity transitively reachable via child relations (descendants).
+    /// List thoughts filtered by entity name or alias (case-insensitive), including
+    /// thoughts linked to any entity transitively reachable via child relations
+    /// (descendants). An unknown name/alias returns an empty list; an alias registered
+    /// to more than one entity returns `ThoughtError::AmbiguousAlias`.
     pub fn list_by_entity(conn: &Connection, entity_name: &str) -> Result<Vec<Thought>, ThoughtError> {
-        let lowercase_name = entity_name.to_lowercase();
+        let Some(entity) = crate::storage::entities_repository::EntitiesRepository::resolve(conn, entity_name)? else {
+            return Ok(Vec::new());
+        };
 
         let mut stmt = conn.prepare(
             "WITH RECURSIVE reachable(id) AS (
-                 SELECT id FROM entities WHERE name = ?1
+                 SELECT ?1
                  UNION
                  SELECT er.child_id FROM entity_relations er JOIN reachable r ON er.parent_id = r.id
              )
@@ -120,7 +124,7 @@ impl ThoughtsRepository {
         )?;
 
         let thoughts = stmt
-            .query_map([lowercase_name], |row| {
+            .query_map([entity.id.unwrap()], |row| {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map_err(|e| {
@@ -139,19 +143,22 @@ impl ThoughtsRepository {
         Ok(thoughts)
     }
 
-    /// List the most recent thoughts linked to an entity (case-insensitive), newest first,
-    /// including thoughts linked to any entity transitively reachable via child relations
-    /// (descendants).
+    /// List the most recent thoughts linked to an entity name or alias (case-insensitive),
+    /// newest first, including thoughts linked to any entity transitively reachable via
+    /// child relations (descendants). An unknown name/alias returns an empty list; an
+    /// alias registered to more than one entity returns `ThoughtError::AmbiguousAlias`.
     pub fn list_latest_by_entity(
         conn: &Connection,
         entity_name: &str,
         limit: usize,
     ) -> Result<Vec<Thought>, ThoughtError> {
-        let lowercase_name = entity_name.to_lowercase();
+        let Some(entity) = crate::storage::entities_repository::EntitiesRepository::resolve(conn, entity_name)? else {
+            return Ok(Vec::new());
+        };
 
         let mut stmt = conn.prepare(
             "WITH RECURSIVE reachable(id) AS (
-                 SELECT id FROM entities WHERE name = ?1
+                 SELECT ?1
                  UNION
                  SELECT er.child_id FROM entity_relations er JOIN reachable r ON er.parent_id = r.id
              )
@@ -164,7 +171,7 @@ impl ThoughtsRepository {
         )?;
 
         let thoughts = stmt
-            .query_map((lowercase_name, limit as i64), |row| {
+            .query_map((entity.id.unwrap(), limit as i64), |row| {
                 let created_at_str: String = row.get(2)?;
                 let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                     .map_err(|e| {
@@ -523,6 +530,48 @@ mod tests {
 
         let thoughts = ThoughtsRepository::list_by_entity(&conn, "nonexistent").unwrap();
         assert!(thoughts.is_empty());
+    }
+
+    #[test]
+    fn test_list_by_entity_resolves_alias_same_as_canonical_name() {
+        use crate::models::entity::Entity;
+        use crate::storage::entities_repository::EntitiesRepository;
+        use crate::storage::entity_aliases_repository::EntityAliasesRepository;
+
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let entity = Entity::new("Rust".to_string());
+        let entity_id = EntitiesRepository::find_or_create(&conn, &entity).unwrap();
+        EntityAliasesRepository::add_alias(&conn, entity_id, "rustlang").unwrap();
+
+        let thought = Thought::new("Learning [Rust]".to_string()).unwrap();
+        let thought_id = ThoughtsRepository::save(&conn, &thought).unwrap();
+        EntitiesRepository::link_to_thought(&conn, entity_id, thought_id).unwrap();
+
+        let by_canonical = ThoughtsRepository::list_by_entity(&conn, "rust").unwrap();
+        let by_alias = ThoughtsRepository::list_by_entity(&conn, "rustlang").unwrap();
+        assert_eq!(by_canonical.len(), 1);
+        assert_eq!(by_alias.len(), 1);
+        assert_eq!(by_canonical[0].id, by_alias[0].id);
+    }
+
+    #[test]
+    fn test_list_by_entity_ambiguous_alias_errors() {
+        use crate::models::entity::Entity;
+        use crate::storage::entities_repository::EntitiesRepository;
+        use crate::storage::entity_aliases_repository::EntityAliasesRepository;
+
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let sarah_id = EntitiesRepository::find_or_create(&conn, &Entity::new("Sarah".to_string())).unwrap();
+        let john_id = EntitiesRepository::find_or_create(&conn, &Entity::new("John".to_string())).unwrap();
+        EntityAliasesRepository::add_alias(&conn, sarah_id, "boss").unwrap();
+        EntityAliasesRepository::add_alias(&conn, john_id, "boss").unwrap();
+
+        let result = ThoughtsRepository::list_by_entity(&conn, "boss");
+        assert!(matches!(result, Err(ThoughtError::AmbiguousAlias { .. })));
     }
 
     #[test]

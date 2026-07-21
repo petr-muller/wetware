@@ -4,6 +4,7 @@ use crate::services::color_mode::ColorMode;
 use crate::services::entity_styler::EntityStyler;
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
+use crate::storage::entity_aliases_repository::EntityAliasesRepository;
 use crate::storage::entity_relations_repository::EntityRelationsRepository;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
@@ -30,7 +31,7 @@ pub fn execute(entity_name: &str, db_path: &Path, color_mode: ColorMode) -> Resu
     let conn = get_connection(db_path)?;
     run_migrations(&conn)?;
 
-    let entity = EntitiesRepository::find_by_name(&conn, entity_name)?
+    let entity = EntitiesRepository::resolve(&conn, entity_name)?
         .ok_or_else(|| ThoughtError::EntityNotFound(entity_name.to_string()))?;
 
     let mut styler = EntityStyler::new(color_mode.should_use_colors());
@@ -40,6 +41,12 @@ pub fn execute(entity_name: &str, db_path: &Path, color_mode: ColorMode) -> Resu
     if let Some(description) = &entity.description {
         println!();
         println!("{}", styler.render_content(description));
+    }
+
+    let aliases = EntityAliasesRepository::list_for_entity(&conn, entity.id.unwrap())?;
+    if !aliases.is_empty() {
+        println!();
+        println!("Aliases: {}", aliases.join(", "));
     }
 
     let parents = EntityRelationsRepository::list_parents(&conn, entity.id.unwrap())?;
@@ -151,6 +158,28 @@ mod tests {
         drop(conn);
 
         let result = execute("rust", &db_path, ColorMode::Never);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_show_with_aliases_succeeds() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let conn = get_connection(&db_path).unwrap();
+        crate::storage::migrations::run_migrations(&conn).unwrap();
+
+        setup_entity(&conn, "rust", None);
+        let entity = EntitiesRepository::find_by_name(&conn, "rust").unwrap().unwrap();
+        EntityAliasesRepository::add_alias(&conn, entity.id.unwrap(), "rustlang").unwrap();
+        drop(conn);
+
+        let result = execute("rust", &db_path, ColorMode::Never);
+        assert!(result.is_ok());
+
+        // Also resolvable by the alias itself.
+        let result = execute("rustlang", &db_path, ColorMode::Never);
         assert!(result.is_ok());
     }
 

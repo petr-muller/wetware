@@ -1,8 +1,7 @@
 /// Entity edit command implementation
 use crate::errors::ThoughtError;
 use crate::input::editor;
-use crate::models::entity::Entity;
-use crate::services::entity_parser;
+use crate::services::{entity_parser, entity_resolution};
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
@@ -48,15 +47,18 @@ pub fn execute(
     let conn = get_connection(db_path)?;
     run_migrations(&conn)?;
 
-    // T030: Verify entity exists
-    let entity_opt = EntitiesRepository::find_by_name(&conn, entity_name)?;
-    if entity_opt.is_none() {
+    // T030: Verify entity exists (alias-aware, so `entity_name` may itself be an alias)
+    let entity_opt = EntitiesRepository::resolve(&conn, entity_name)?;
+    let Some(ref entity) = entity_opt else {
         eprintln!("Error: Entity '{}' not found", entity_name);
         eprintln!();
         eprintln!("Hint: Create the entity first by referencing it in a thought:");
         eprintln!("  wet add \"Learning about [{}] today\"", entity_name);
         return Err(ThoughtError::EntityNotFound(entity_name.to_string()));
-    }
+    };
+    // Resolved canonical (lowercase) name - subsequent repository calls that do their
+    // own canonical-only lookup must use this, not the raw (possibly alias) argument.
+    let resolved_name = entity.name.clone();
 
     // Get description text based on input method
     let description_text = if let Some(inline_desc) = description {
@@ -97,13 +99,12 @@ pub fn execute(
     if let Some(ref desc) = final_description {
         let referenced_entities = entity_parser::extract_unique_entities(desc);
         for ref_entity_name in referenced_entities {
-            let ref_entity = Entity::new(ref_entity_name);
-            EntitiesRepository::find_or_create(&conn, &ref_entity)?;
+            entity_resolution::resolve_or_create_entity(&conn, &ref_entity_name)?;
         }
     }
 
     // Update description in database
-    EntitiesRepository::update_description(&conn, entity_name, final_description.clone())?;
+    EntitiesRepository::update_description(&conn, &resolved_name, final_description.clone())?;
 
     // Print success message
     if final_description.is_some() {
