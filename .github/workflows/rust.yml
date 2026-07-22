@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v4
     - run: rustup toolchain install stable --profile minimal
     - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2
     - name: Build
@@ -35,7 +35,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v4
     - run: rustup component add clippy
     - uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0  # v1
       with:
