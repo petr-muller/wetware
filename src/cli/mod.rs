@@ -6,6 +6,7 @@ pub mod edit;
 pub mod entities;
 pub mod entity_alias;
 pub mod entity_edit;
+pub mod entity_merge;
 pub mod entity_relate;
 pub mod entity_rename;
 pub mod entity_show;
@@ -98,6 +99,14 @@ pub enum EntityCommands {
         entity_name: String,
         /// New entity name
         new_name: String,
+    },
+    /// Merge an entity into another, redirecting all references to it
+    Merge {
+        /// Entity to merge away (case-insensitive)
+        entity_name: String,
+        /// Entity to merge into (case-insensitive)
+        #[arg(long)]
+        into: String,
     },
     /// Show an entity's description and latest thoughts
     Show {

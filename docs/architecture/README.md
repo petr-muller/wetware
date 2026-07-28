@@ -111,6 +111,8 @@ order they were made:
 | [0010](decisions/0010-entity-rename.md) | Literal text rewrite on rename, ID-keyed links untouched |
 | [0011](decisions/0011-entity-show.md) | `wet entity show` detail view, full description + 5 latest thoughts |
 | [0012](decisions/0012-entity-relations.md) | Directed entity parent/child relations (DAG) with recursive-CTE reachability |
+| [0013](decisions/0013-entity-aliases.md) | Persisted per-entity alias registry with canonical-name precedence |
+| [0014](decisions/0014-entity-merge.md) | `wet entity merge`, wording-preserving reference redirect, both histories kept |
 
 Only ADRs with `status: Accepted` reflect current guidance — see each ADR's frontmatter.
 

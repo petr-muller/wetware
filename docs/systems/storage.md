@@ -133,7 +133,12 @@ objects:
 `Err(AmbiguousAlias)` if the alias matches more than one entity), `list_all` (alphabetical by
 `canonical_name`), `unlink_all_from_thought`, `update_description` (errors `EntityNotFound` if absent),
 `rename` (updates `name`+`canonical_name`, errors `EntityNotFound`/`EntityAlreadyExists`; the collision
-check compares entity IDs, so a self-rename or case-only casing change is allowed). Most call sites that
+check compares entity IDs, so a self-rename or case-only casing change is allowed),
+`repoint_thought_links(source_id, target_id)` (moves an entity's `thought_entities` rows onto another via
+`INSERT OR IGNORE`, tolerating thoughts already linked to both; returns the number of links created) and
+`delete(id)` (deletes the row and, via `ON DELETE CASCADE`, its `thought_entities`, `entity_aliases` and
+`entity_relations` rows — so anything worth keeping must be copied first; a no-op for an unknown ID). The
+last two exist for entity merge, see [`../flows/entity-merge.md`](../flows/entity-merge.md). Most call sites that
 used to call `find_by_name` for user-facing name lookups now call `resolve` instead, so they also accept
 aliases; `find_by_name` itself is kept for call sites that deliberately want canonical-only semantics
 (e.g. `entity rename`'s new-name collision check).
@@ -168,14 +173,16 @@ would close a cycle. `list_parents`/`list_children` return only *direct* (non-tr
 pair, used by the TUI to build its in-memory relation graph at startup (see
 [`tui.md`](tui.md)).
 
-Multi-step operations that touch more than one table (`cli/edit.rs`, `cli/entity_rename.rs`) wrap their
-repository calls in `conn.transaction()` for atomicity — see [`flows/edit-thought.md`](../flows/edit-thought.md)
-and [`flows/entity-rename.md`](../flows/entity-rename.md).
+Multi-step operations that touch more than one table (`cli/edit.rs`, `cli/entity_rename.rs`,
+`cli/entity_merge.rs`) wrap their repository calls in `conn.transaction()` for atomicity — see
+[`flows/edit-thought.md`](../flows/edit-thought.md), [`flows/entity-rename.md`](../flows/entity-rename.md)
+and [`flows/entity-merge.md`](../flows/entity-merge.md).
 
 ## Important flows
 
 - [`../flows/edit-thought.md`](../flows/edit-thought.md)
 - [`../flows/entity-rename.md`](../flows/entity-rename.md)
+- [`../flows/entity-merge.md`](../flows/entity-merge.md)
 
 Adding a thought, showing an entity, and deleting a thought are single-transaction (or single-call)
 operations covered here rather than as separate flow docs: "add" is `ThoughtsRepository::save` +
