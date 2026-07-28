@@ -121,6 +121,35 @@ fn test_entity_merge_nonexistent_target() {
 }
 
 #[test]
+fn test_entity_merge_into_target_with_parentheses_is_rejected() {
+    let temp_db = setup_temp_db();
+
+    run_wet_command(&["add", "Coffee with [Alice (HR)]"], Some(&temp_db));
+    run_wet_command(&["add", "Standup with [Bob]"], Some(&temp_db));
+
+    let result = run_wet_command(&["entity", "merge", "Bob", "--into", "Alice (HR)"], Some(&temp_db));
+
+    assert_ne!(result.status, 0, "Command should fail");
+    assert!(
+        result.stderr.contains("'(' or ')'"),
+        "Should explain the reserved characters. stderr: {}",
+        result.stderr
+    );
+
+    let thoughts_result = run_wet_command(&["thoughts"], Some(&temp_db));
+    assert!(
+        thoughts_result.stdout.contains("Standup with Bob"),
+        "Thought text should be untouched by the rejected merge. Got: {}",
+        thoughts_result.stdout
+    );
+    assert!(
+        !thoughts_result.stdout.contains("Bob(Alice"),
+        "Must not write markup the parser cannot read back. Got: {}",
+        thoughts_result.stdout
+    );
+}
+
+#[test]
 fn test_entity_merge_into_itself_is_rejected() {
     let temp_db = setup_temp_db();
 

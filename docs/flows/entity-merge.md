@@ -25,7 +25,11 @@ and the merged entity's description, aliases and relations are preserved on it.
    (see [`entity-alias-resolution.md`](entity-alias-resolution.md)) — errors `EntityNotFound` for
    whichever one is missing.
 2. Reject a merge where both names resolve to the same entity — errors `SelfMerge`.
-3. In a single `conn.transaction()`, in this order:
+3. Reject a target whose name contains `(` or `)` — errors `InvalidInput`. The target name is
+   interpolated into `[display](target)` markup, and `ENTITY_PATTERN`'s target group is `[^()]+`, so such
+   a name would produce text that reads back as a *bare* reference to the display text. See
+   "Invariants and assumptions" below.
+4. In a single `conn.transaction()`, in this order:
    - Rewrite every entity's description via `entity_parser::redirect_entity_references`. Any entity's
      description can mention the source, not just the two being merged.
    - Rewrite the content of every thought reachable from the source the same way.
@@ -61,6 +65,8 @@ it originally did; the target carries the union of both entities' descriptions, 
 - Either entity not found → `ThoughtError::EntityNotFound`, no changes made (plus the same stderr hint
   block `wet entity rename` prints).
 - Both names resolve to the same entity → `ThoughtError::SelfMerge`, no changes made.
+- Target name contains `(` or `)` → `ThoughtError::InvalidInput` naming the entity and suggesting
+  `wet entity rename`, no changes made.
 - Either name is an ambiguous alias → `ThoughtError::AmbiguousAlias`, no changes made.
 
 Everything after resolution runs inside one transaction, so any storage error rolls the whole merge back.
@@ -79,6 +85,11 @@ None.
   and `wet edit` re-extract entities by name, typing `[Alice]` in a *future* thought creates a fresh
   `Alice` entity. Run `wet entity alias <target> --alias <old name>` after the merge to have the old name
   keep resolving.
+- An entity name containing `(` or `)` can be a merge *source* but never a merge *target*: group 1 of
+  `ENTITY_PATTERN` permits parentheses (so `wet add "[Alice (HR)]"` creates such an entity through
+  ordinary use) but the target group does not. Rewriting into such a target would desynchronize stored
+  text from the ID-keyed link table, and because `wet edit` re-extracts entities by name, the next edit
+  of an affected thought would silently recreate the merged-away entity and undo the merge for it.
 - Merging is irreversible and, like `wet delete`, runs without confirmation (see
   [`../architecture/decisions/0008-delete-thoughts.md`](../architecture/decisions/0008-delete-thoughts.md)).
 
@@ -88,18 +99,22 @@ Not applicable beyond general local-data sensitivity noted in [`../systems/stora
 
 ## Observability and debugging
 
-The command reports how many thoughts and descriptions it rewrote. A count of zero where you expected
-more usually means the text used bracket formatting that `ENTITY_PATTERN` doesn't match (see
-[`../systems/services.md`](../systems/services.md)), or that the references were already aliased at the
-target.
+The command reports how many thought links it moved, how many thoughts and descriptions it rewrote, and
+how many relation edges it dropped. Links moved exceeds thoughts rewritten whenever a thought referenced
+the source through a registered Known Alias — no stored text names the source in that case, so the link
+moves without a rewrite. A rewrite count of zero where you expected more usually means the text used
+bracket formatting that `ENTITY_PATTERN` doesn't match (see
+[`../systems/services.md`](../systems/services.md)).
 
 ## Testing notes
 
 Cover: bare and aliased references redirected with wording preserved; a thought referencing both entities
 keeping one link and one listing; descriptions of unrelated entities rewritten; description append and
 adopt-when-target-has-none; alias transfer, including skipping an alias that names the target; parent and
-child relation transfer; relation that would become a self-relation dropped; both sides resolved through
-aliases; self-merge rejected; missing entity leaving the database untouched.
+child relation transfer; relation that would become a self-relation or a cycle dropped *and counted*;
+links moved counted separately from text rewrites when an alias-only reference is involved; both sides
+resolved through aliases; self-merge rejected; parenthesized target rejected while a parenthesized source
+still merges cleanly; missing entity leaving the database untouched.
 
 ## Source map
 

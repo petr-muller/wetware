@@ -50,10 +50,80 @@ fn test_merge_redirects_references_and_removes_source() {
     assert_eq!(summary.source, "Alice");
     assert_eq!(summary.target, "Bob");
     assert_eq!(summary.thoughts_updated, 1);
+    assert_eq!(summary.links_moved, 1);
+    assert_eq!(summary.relations_dropped, 0);
 
     let updated = ThoughtsRepository::get_by_id(&conn, thought_id).unwrap();
     assert_eq!(updated.content, "Lunch with [Alice](Bob) and [Al](Bob)");
     assert!(EntitiesRepository::find_by_name(&conn, "Alice").unwrap().is_none());
+}
+
+#[test]
+fn test_merge_counts_links_moved_via_registered_alias() {
+    let mut conn = get_memory_connection().unwrap();
+    run_migrations(&conn).unwrap();
+
+    let alice = entity(&conn, "Alice");
+    entity(&conn, "Bob");
+    EntityAliasesRepository::add_alias(&conn, alice, "Ali").unwrap();
+    thought(&conn, "Hi [Alice]", &[alice]);
+    // No text names the source, so this one moves without being rewritten.
+    thought(&conn, "Coffee with [Ali]", &[alice]);
+
+    let summary = merge(&mut conn, "alice", "bob").unwrap();
+
+    assert_eq!(
+        summary.thoughts_updated, 1,
+        "Only one thought's text mentions the source"
+    );
+    assert_eq!(summary.links_moved, 2, "But both thoughts move onto the target");
+}
+
+#[test]
+fn test_merge_into_target_with_parentheses_is_rejected() {
+    let mut conn = get_memory_connection().unwrap();
+    run_migrations(&conn).unwrap();
+
+    entity(&conn, "Bob");
+    entity(&conn, "Alice (HR)");
+    let thought_id = thought(&conn, "Standup with [Bob]", &[]);
+
+    // `[Bob](Alice (HR))` would re-parse as a bare `[Bob]`, silently unlinking the
+    // thought from the survivor the next time it is edited.
+    match merge(&mut conn, "Bob", "Alice (HR)") {
+        Err(ThoughtError::InvalidInput(msg)) => {
+            assert!(
+                msg.contains("Alice (HR)"),
+                "Error should name the offending entity: {msg}"
+            );
+            assert!(msg.contains("rename"), "Error should point at the workaround: {msg}");
+        }
+        other => panic!("Expected InvalidInput error, got {:?}", other),
+    }
+
+    assert!(EntitiesRepository::find_by_name(&conn, "Bob").unwrap().is_some());
+    let unchanged = ThoughtsRepository::get_by_id(&conn, thought_id).unwrap();
+    assert_eq!(unchanged.content, "Standup with [Bob]");
+}
+
+#[test]
+fn test_merge_allows_parentheses_in_the_source_name() {
+    let mut conn = get_memory_connection().unwrap();
+    run_migrations(&conn).unwrap();
+
+    let alice = entity(&conn, "Alice (HR)");
+    entity(&conn, "Bob");
+    let thought_id = thought(&conn, "Coffee with [Alice (HR)]", &[alice]);
+
+    merge(&mut conn, "Alice (HR)", "Bob").unwrap();
+
+    // Group 1 permits parentheses, so this re-parses correctly as a reference to Bob.
+    let updated = ThoughtsRepository::get_by_id(&conn, thought_id).unwrap();
+    assert_eq!(updated.content, "Coffee with [Alice (HR)](Bob)");
+    assert_eq!(
+        wetware::services::entity_parser::extract_entities(&updated.content),
+        vec!["Bob"]
+    );
 }
 
 #[test]
@@ -210,10 +280,28 @@ fn test_merge_drops_relation_that_would_become_self_relation() {
     // Alice is already a child of Bob - collapsing them must not create Bob -> Bob.
     EntityRelationsRepository::add_relation(&conn, alice, bob).unwrap();
 
-    merge(&mut conn, "alice", "bob").unwrap();
+    let summary = merge(&mut conn, "alice", "bob").unwrap();
 
     assert!(EntityRelationsRepository::list_parents(&conn, bob).unwrap().is_empty());
     assert!(EntityRelationsRepository::list_children(&conn, bob).unwrap().is_empty());
+    assert_eq!(summary.relations_dropped, 1, "The dropped edge should be reported");
+}
+
+#[test]
+fn test_merge_reports_dropped_cycle_relation() {
+    let mut conn = get_memory_connection().unwrap();
+    run_migrations(&conn).unwrap();
+
+    let alice = entity(&conn, "Alice");
+    let bob = entity(&conn, "Bob");
+    let team = entity(&conn, "Team");
+    // Bob -> Team, and Team -> Alice. Collapsing Alice into Bob would close Bob -> Team -> Bob.
+    EntityRelationsRepository::add_relation(&conn, bob, team).unwrap();
+    EntityRelationsRepository::add_relation(&conn, team, alice).unwrap();
+
+    let summary = merge(&mut conn, "alice", "bob").unwrap();
+
+    assert_eq!(summary.relations_dropped, 1);
 }
 
 #[test]

@@ -47,6 +47,19 @@ opinion about what the old name means going forward, so it doesn't quietly claim
 **No confirmation prompt**, matching every other `wet` command
 (see [`0008-delete-thoughts.md`](0008-delete-thoughts.md)).
 
+**An entity whose name contains `(` or `)` cannot be a merge target**, and the command rejects it up
+front, pointing at `wet entity rename` as the fix. Such names arise through ordinary use — group 1 of
+`ENTITY_PATTERN` permits parentheses, so `wet add "[Alice (HR)]"` creates one — but the target group is
+`[^()]+`, so `[Bob](Alice (HR))` reads back as a bare `[Bob]`. That desynchronizes stored text from the
+link table, and since `wet edit` re-extracts entities by name, the next edit of an affected thought would
+recreate the merged-away entity and silently undo the merge for it. Rejecting was chosen over falling back
+to rename-style wording replacement for those targets: the fallback would let the merge succeed, but by
+quietly abandoning the wording-preservation property that is the whole point of the decision above, in the
+one case the user cannot see coming. `entity_rename.rs` already guards the same character class.
+
+Merge reports what it moved, rewrote, and **dropped** — including relation edges discarded as
+self-relations or cycles. Dropping them is right, but doing so silently *and* irreversibly is not.
+
 ## Consequences
 
 - Duplicate entities are now fixable without losing anything: no thought, description, alias or relation
@@ -62,12 +75,17 @@ opinion about what the old name means going forward, so it doesn't quietly claim
   thought reachable from the source, in one transaction).
 - Appending descriptions can produce awkward prose when both entities described the same thing. The user
   edits it afterwards; the system does not attempt to reconcile the two texts.
+- A parenthesized entity name is now a second-class merge participant: usable as a source, never as a
+  target, requiring a rename first. This is a real usability wart, accepted because the alternative is a
+  silent data-integrity bug. It would disappear if reference syntax ever gained escaping.
 
 ## Alternatives considered
 
 - **Rewrite `[Alice]` to `[Bob]`** (reusing `rewrite_entity_references` verbatim, exactly what rename
   does) — rejected: zero new code, but it rewrites the visible wording of thoughts the user wrote, which
   is a different and more invasive claim than re-pointing a link.
+- **Falling back to that rewrite for parenthesized targets** instead of rejecting them — rejected, see
+  the target-name rule above: it trades a visible error for an invisible semantic downgrade.
 - **Discard the source's description** — rejected: silently loses text the user wrote, and there is no
   undo.
 - **Register the source's name as an alias of the target automatically** — considered and rejected as a

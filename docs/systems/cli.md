@@ -91,7 +91,9 @@ commands (see [`storage.md`](storage.md)).
   alias-aware (`resolve`); merging an entity into itself errors (`SelfMerge`). Unlike the other commands,
   its orchestration lives in a separate `merge(conn, ...)` function returning a `MergeSummary`, with
   `execute` handling only the connection and output — so the transaction can be driven directly from
-  tests. Prints how many thoughts and descriptions it rewrote.
+  tests. Rejects a target whose name contains `(` or `)`, which could not be written back as a reference
+  target (the mirror of `entity_rename.rs`'s guard, for an entity that already exists). Prints how many
+  links it moved, how many thoughts and descriptions it rewrote, and how many relations it dropped.
 - `entity_show.rs` — prints canonical name, styled description (if any), an `Aliases: ...` line when the
   entity has any registered aliases, direct (non-transitive) `Parents:`/`Children:` lines when the entity
   has any, and up to 5 most recent linked thoughts (`LATEST_THOUGHTS_LIMIT = 5`) — this list now includes

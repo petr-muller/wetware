@@ -117,6 +117,22 @@ wet entity rename rust Rustlang
 
 Rewrites every stored reference to the entity's old name (in thought content and entity descriptions) to the new name. Existing links are preserved.
 
+### Merge entities
+
+```bash
+wet entity merge rustlang --into rust
+```
+
+Folds the first entity into the second, for when the same thing ended up recorded under two names. Thoughts, description, aliases and relations all move onto the survivor, which is then the only one left.
+
+References keep the wording originally written — `[rustlang]` becomes `[rustlang](rust)` — so past thoughts still read as you wrote them while pointing at the surviving entity. Unlike a rename, this is not reversible.
+
+The merged-away name is not registered as an alias of the survivor, so a *future* `[rustlang]` would create a fresh entity. To prevent that:
+
+```bash
+wet entity alias rust --alias rustlang
+```
+
 ## Database
 
 By default, notes are stored in `default.db` inside wetware's data directory (`~/.local/share/wetware/` on
