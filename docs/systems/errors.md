@@ -42,6 +42,9 @@ Variants, in `src/errors/thought_error.rs`:
 | `TuiError(String)` | A TUI-specific failure. |
 | `RelationCycle { child, parent }` | Adding an entity relation would create a cycle in the parent/child graph. |
 | `SelfRelation(String)` | An entity relation was attempted between an entity and itself. |
+| `AmbiguousAlias { alias, entities }` | A name resolved to more than one entity via the alias registry. |
+| `RenameCollidesWithAlias { old, new, existing_entity }` | A rename target is already registered as a different entity's alias. |
+| `SelfMerge(String)` | Both sides of an entity merge resolved to the same entity. |
 
 `#[from]` on `StorageError` and `FileError` means `rusqlite::Error`/`std::io::Error` convert automatically
 via `?` — code that queries SQLite or touches the filesystem doesn't need explicit error mapping unless it

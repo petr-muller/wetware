@@ -45,6 +45,16 @@ resolving it is ambiguous and errors rather than guessing. Not to be confused wi
 [`flows/entity-alias-resolution.md`](flows/entity-alias-resolution.md), and
 [`architecture/decisions/0013-entity-aliases.md`](architecture/decisions/0013-entity-aliases.md).
 
+## Merge
+
+Folding one Entity into another (`wet entity merge <name> --into <target>`), so that everything pointing
+at the merged-away Entity — links, Entity References in stored text, its description, Known Aliases and
+relations — ends up on the survivor, which is then the only one left. Distinct from a rename: a rename
+changes what one Entity is called, a Merge asserts that two Entities were always the same thing. Entity
+References keep the wording originally written (`[Alice]` becomes `[Alice](Bob)`). See
+[`flows/entity-merge.md`](flows/entity-merge.md) and
+[`architecture/decisions/0014-entity-merge.md`](architecture/decisions/0014-entity-merge.md).
+
 ## Description Preview
 
 The single-line, ellipsized summary of an Entity's description shown in `wet entities` listings —

@@ -122,6 +122,60 @@ pub fn rewrite_entity_references(text: &str, old_name: &str, new_name: &str) -> 
         .into_owned()
 }
 
+/// Redirect literal references to `old_name` (case-insensitive) at `new_target`,
+/// preserving the wording that was originally written.
+///
+/// Used when merging an entity into another one: the merged-away entity's name stays
+/// visible in the text, but the reference now resolves to the surviving entity.
+///
+/// - Bare `[OldName]` -> `[OldName](NewTarget)` (display text kept, target added)
+/// - Aliased `[Alias](OldName)` -> `[Alias](NewTarget)`
+/// - `[OldName](other-target)`: left untouched (coincidental alias text, not a
+///   reference to this entity) - same rule as [`rewrite_entity_references`]
+/// - A reference whose display text already matches `new_target` collapses to the
+///   bare form rather than the redundant `[NewTarget](NewTarget)`
+/// - Everything else: left untouched
+///
+/// # Examples
+///
+/// ```
+/// use wetware::services::entity_parser::redirect_entity_references;
+///
+/// let text = redirect_entity_references("Lunch with [Alice]", "alice", "Bob");
+/// assert_eq!(text, "Lunch with [Alice](Bob)");
+///
+/// let text = redirect_entity_references("Called [Al](alice) again", "alice", "Bob");
+/// assert_eq!(text, "Called [Al](Bob) again");
+/// ```
+pub fn redirect_entity_references(text: &str, old_name: &str, new_target: &str) -> String {
+    let old_lower = old_name.trim().to_lowercase();
+    let target_lower = new_target.trim().to_lowercase();
+
+    ENTITY_PATTERN
+        .replace_all(text, |caps: &Captures| {
+            let alias = caps[1].trim();
+            let target = caps.get(2).map(|m| m.as_str().trim());
+
+            let matches_old = match target {
+                Some(t) if !t.is_empty() => t.to_lowercase() == old_lower,
+                None => alias.to_lowercase() == old_lower,
+                _ => false,
+            };
+
+            if !matches_old {
+                return caps[0].to_string();
+            }
+
+            // `[NewTarget](NewTarget)` carries no more information than `[NewTarget]`.
+            if alias.to_lowercase() == target_lower {
+                format!("[{}]", alias)
+            } else {
+                format!("[{}]({})", alias, new_target)
+            }
+        })
+        .into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,6 +384,50 @@ mod tests {
     #[test]
     fn test_rewrite_unrelated_text_unchanged() {
         let text = rewrite_entity_references("No entities here at all", "sarah", "Sarah Smith");
+        assert_eq!(text, "No entities here at all");
+    }
+
+    #[test]
+    fn test_redirect_bare_reference_keeps_wording() {
+        let text = redirect_entity_references("Lunch with [Alice]", "alice", "Bob");
+        assert_eq!(text, "Lunch with [Alice](Bob)");
+    }
+
+    #[test]
+    fn test_redirect_aliased_reference_retargets() {
+        let text = redirect_entity_references("Called [Al](alice) again", "alice", "Bob");
+        assert_eq!(text, "Called [Al](Bob) again");
+    }
+
+    #[test]
+    fn test_redirect_is_case_insensitive() {
+        let text = redirect_entity_references("[ALICE] and [x](AlIcE)", "alice", "Bob");
+        assert_eq!(text, "[ALICE](Bob) and [x](Bob)");
+    }
+
+    #[test]
+    fn test_redirect_leaves_coincidental_display_text_alone() {
+        // Group 1 happens to be "Alice" but it targets a different entity.
+        let text = redirect_entity_references("[Alice](other-person)", "alice", "Bob");
+        assert_eq!(text, "[Alice](other-person)");
+    }
+
+    #[test]
+    fn test_redirect_collapses_redundant_self_target() {
+        // A bare [Bob] that was an alias of Alice would become [Bob](Bob).
+        let text = redirect_entity_references("Saw [Bob](alice) today", "alice", "Bob");
+        assert_eq!(text, "Saw [Bob] today");
+    }
+
+    #[test]
+    fn test_redirect_no_match_passthrough() {
+        let text = redirect_entity_references("Meeting with [John] about [project]", "alice", "Bob");
+        assert_eq!(text, "Meeting with [John] about [project]");
+    }
+
+    #[test]
+    fn test_redirect_unrelated_text_unchanged() {
+        let text = redirect_entity_references("No entities here at all", "alice", "Bob");
         assert_eq!(text, "No entities here at all");
     }
 }

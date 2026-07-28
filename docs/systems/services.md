@@ -48,6 +48,12 @@ needs to find or rewrite entity references in text:
 - `rewrite_entity_references(text, old_name, new_name) -> String` — rewrites bare `[Old]` → `[New]` and
   aliased `[Alias](old)` → `[Alias](New)`, leaving alias display text and unrelated references untouched.
   Used by entity rename (see [`flows/entity-rename.md`](../flows/entity-rename.md)).
+- `redirect_entity_references(text, old_name, new_target) -> String` — re-points references at a
+  different entity while *keeping* the wording that was written: bare `[Old]` → `[Old](NewTarget)` and
+  aliased `[Alias](old)` → `[Alias](NewTarget)`, collapsing to bare `[NewTarget]` when the display text
+  already names the target. Used by entity merge (see [`flows/entity-merge.md`](../flows/entity-merge.md));
+  the contrast with `rewrite_entity_references`'s wording-replacing behavior is deliberate and explained
+  in [`../architecture/decisions/0014-entity-merge.md`](../architecture/decisions/0014-entity-merge.md).
 
 Note: this module's "aliased syntax" (`[alias](entity)`) is unrelated to the persisted alias registry
 described below and in [`storage.md`](storage.md) — it's free-form, per-occurrence *display* text that
@@ -81,7 +87,8 @@ the pipeline and returns `""` if the available width is below `MIN_PREVIEW_WIDTH
 
 ## Important flows
 
-Entity reference rewriting is the core of [`flows/entity-rename.md`](../flows/entity-rename.md).
+Entity reference rewriting is the core of [`flows/entity-rename.md`](../flows/entity-rename.md) and
+[`flows/entity-merge.md`](../flows/entity-merge.md).
 
 ## Data and state
 
@@ -90,7 +97,7 @@ Entity reference rewriting is the core of [`flows/entity-rename.md`](../flows/en
 ## Interfaces and entry points
 
 `ColorMode::should_use_colors`, `entity_parser::{extract_entities, extract_unique_entities,
-rewrite_entity_references}`, `EntityStyler::{new, render_content}`,
+rewrite_entity_references, redirect_entity_references}`, `EntityStyler::{new, render_content}`,
 `description_formatter::{generate_preview, get_terminal_width}`.
 
 ## Dependencies

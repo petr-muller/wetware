@@ -53,6 +53,9 @@ pub enum ThoughtError {
         new: String,
         existing_entity: String,
     },
+
+    #[error("Cannot merge entity '{0}' into itself")]
+    SelfMerge(String),
 }
 
 #[cfg(test)]

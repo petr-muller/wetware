@@ -40,6 +40,7 @@ Global `--color` flag (`ColorMode`, see [`services.md`](services.md)). Subcomman
 | `entities` | — | List all entities | `cli/entities.rs` |
 | `entity edit` | `entity_name`, `--description` \| `--description-file` \| interactive | Set/remove a description | `cli/entity_edit.rs` |
 | `entity rename` | `entity_name`, `new_name` | Rename an entity, rewriting references | `cli/entity_rename.rs` |
+| `entity merge` | `entity_name`, `--into <name>` | Merge an entity into another, redirecting references | `cli/entity_merge.rs` |
 | `entity show` | `entity_name` | Show description, parents/children, + 5 latest linked thoughts (including descendants') | `cli/entity_show.rs` |
 | `entity relate` | `entity_name`, `--parent <name>` | Mark `entity_name` as a child of `--parent` | `cli/entity_relate.rs` |
 | `entity unrelate` | `entity_name`, `--parent <name>` | Remove that parent/child relation | `cli/entity_relate.rs` |
@@ -86,6 +87,13 @@ commands (see [`storage.md`](storage.md)).
   [`services.md`](services.md)). The entity to rename is looked up alias-aware (`resolve`); the new name is
   checked against both other entities' canonical names (`EntityAlreadyExists`) and other entities'
   registered aliases (`RenameCollidesWithAlias`).
+- `entity_merge.rs` — see [`flows/entity-merge.md`](../flows/entity-merge.md). Both entities are looked up
+  alias-aware (`resolve`); merging an entity into itself errors (`SelfMerge`). Unlike the other commands,
+  its orchestration lives in a separate `merge(conn, ...)` function returning a `MergeSummary`, with
+  `execute` handling only the connection and output — so the transaction can be driven directly from
+  tests. Rejects a target whose name contains `(` or `)`, which could not be written back as a reference
+  target (the mirror of `entity_rename.rs`'s guard, for an entity that already exists). Prints how many
+  links it moved, how many thoughts and descriptions it rewrote, and how many relations it dropped.
 - `entity_show.rs` — prints canonical name, styled description (if any), an `Aliases: ...` line when the
   entity has any registered aliases, direct (non-transitive) `Parents:`/`Children:` lines when the entity
   has any, and up to 5 most recent linked thoughts (`LATEST_THOUGHTS_LIMIT = 5`) — this list now includes
@@ -111,6 +119,7 @@ commands (see [`storage.md`](storage.md)).
 
 - [`flows/edit-thought.md`](../flows/edit-thought.md)
 - [`flows/entity-rename.md`](../flows/entity-rename.md)
+- [`flows/entity-merge.md`](../flows/entity-merge.md)
 - [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)
 
 Thought deletion (CLI `wet delete`, no confirmation, vs. TUI `x` + confirm overlay) is covered inline here
@@ -189,6 +198,7 @@ bypassing actual CLI argument parsing.
 - [`src/cli/entities.rs`](../../src/cli/entities.rs)
 - [`src/cli/entity_edit.rs`](../../src/cli/entity_edit.rs)
 - [`src/cli/entity_rename.rs`](../../src/cli/entity_rename.rs)
+- [`src/cli/entity_merge.rs`](../../src/cli/entity_merge.rs)
 - [`src/cli/entity_show.rs`](../../src/cli/entity_show.rs)
 - [`src/cli/entity_alias.rs`](../../src/cli/entity_alias.rs)
 
@@ -196,6 +206,7 @@ bypassing actual CLI argument parsing.
 
 - [`storage.md`](storage.md), [`services.md`](services.md), [`tui.md`](tui.md), [`input.md`](input.md)
 - [`flows/edit-thought.md`](../flows/edit-thought.md), [`flows/entity-rename.md`](../flows/entity-rename.md),
+  [`flows/entity-merge.md`](../flows/entity-merge.md),
   [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)
 - [`../architecture/decisions/0008-delete-thoughts.md`](../architecture/decisions/0008-delete-thoughts.md)
 - [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)

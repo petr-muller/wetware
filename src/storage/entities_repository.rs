@@ -174,6 +174,35 @@ impl EntitiesRepository {
 
         Ok(id)
     }
+
+    /// Re-point every `thought_entities` link from `source_id` onto `target_id`.
+    ///
+    /// Used when merging entities. `INSERT OR IGNORE` handles thoughts already linked
+    /// to both entities (the junction table's primary key would otherwise collide).
+    /// The source's own rows are left in place - they disappear via `ON DELETE CASCADE`
+    /// when the source entity is deleted.
+    ///
+    /// Returns the number of links newly created on the target.
+    pub fn repoint_thought_links(conn: &Connection, source_id: i64, target_id: i64) -> Result<usize, ThoughtError> {
+        let inserted = conn.execute(
+            "INSERT OR IGNORE INTO thought_entities (thought_id, entity_id)
+             SELECT thought_id, ?2 FROM thought_entities WHERE entity_id = ?1",
+            (source_id, target_id),
+        )?;
+
+        Ok(inserted)
+    }
+
+    /// Delete an entity by ID.
+    ///
+    /// Foreign keys are enabled on every connection, so this cascades to the entity's
+    /// `thought_entities`, `entity_aliases` and `entity_relations` rows. Anything worth
+    /// keeping (links, aliases, relations) must therefore be copied elsewhere *before*
+    /// calling this. Deleting a nonexistent ID is a no-op.
+    pub fn delete(conn: &Connection, id: i64) -> Result<(), ThoughtError> {
+        conn.execute("DELETE FROM entities WHERE id = ?1", [id])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -515,5 +544,85 @@ mod tests {
             }
             _ => panic!("Expected AmbiguousAlias error"),
         }
+    }
+
+    /// Save a thought and link it to the given entities, returning its ID.
+    fn thought_linked_to(conn: &Connection, content: &str, entity_ids: &[i64]) -> i64 {
+        use crate::models::thought::Thought;
+        use crate::storage::thoughts_repository::ThoughtsRepository;
+
+        let thought_id = ThoughtsRepository::save(conn, &Thought::new(content.to_string()).unwrap()).unwrap();
+        for id in entity_ids {
+            EntitiesRepository::link_to_thought(conn, *id, thought_id).unwrap();
+        }
+        thought_id
+    }
+
+    fn linked_entity_ids(conn: &Connection, thought_id: i64) -> Vec<i64> {
+        let mut stmt = conn
+            .prepare("SELECT entity_id FROM thought_entities WHERE thought_id = ?1 ORDER BY entity_id")
+            .unwrap();
+        stmt.query_map([thought_id], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<Vec<i64>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_repoint_thought_links_moves_links_to_target() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let alice = EntitiesRepository::find_or_create(&conn, &Entity::new("Alice".to_string())).unwrap();
+        let bob = EntitiesRepository::find_or_create(&conn, &Entity::new("Bob".to_string())).unwrap();
+        let thought = thought_linked_to(&conn, "Lunch with [Alice]", &[alice]);
+
+        EntitiesRepository::repoint_thought_links(&conn, alice, bob).unwrap();
+
+        assert_eq!(linked_entity_ids(&conn, thought), vec![alice, bob]);
+    }
+
+    #[test]
+    fn test_repoint_thought_links_tolerates_thought_linked_to_both() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let alice = EntitiesRepository::find_or_create(&conn, &Entity::new("Alice".to_string())).unwrap();
+        let bob = EntitiesRepository::find_or_create(&conn, &Entity::new("Bob".to_string())).unwrap();
+        let thought = thought_linked_to(&conn, "[Alice] met [Bob]", &[alice, bob]);
+
+        // Primary key on (thought_id, entity_id) would collide without INSERT OR IGNORE.
+        let inserted = EntitiesRepository::repoint_thought_links(&conn, alice, bob).unwrap();
+
+        assert_eq!(inserted, 0);
+        assert_eq!(linked_entity_ids(&conn, thought), vec![alice, bob]);
+    }
+
+    #[test]
+    fn test_delete_removes_entity_and_cascades_links() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let alice = EntitiesRepository::find_or_create(&conn, &Entity::new("Alice".to_string())).unwrap();
+        EntityAliasesRepository::add_alias(&conn, alice, "Ali").unwrap();
+        let thought = thought_linked_to(&conn, "Lunch with [Alice]", &[alice]);
+
+        EntitiesRepository::delete(&conn, alice).unwrap();
+
+        assert!(EntitiesRepository::find_by_name(&conn, "Alice").unwrap().is_none());
+        assert!(linked_entity_ids(&conn, thought).is_empty());
+        assert!(
+            EntityAliasesRepository::find_entities_by_alias(&conn, "Ali")
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_delete_nonexistent_entity_is_noop() {
+        let conn = get_memory_connection().unwrap();
+        run_migrations(&conn).unwrap();
+
+        assert!(EntitiesRepository::delete(&conn, 9999).is_ok());
     }
 }

@@ -44,19 +44,24 @@ otherwise silently re-create the old entity).
   in one transaction) — acceptable at current data scale, but a heavier operation than most other single-row
   updates in the system.
 - No entity-merge functionality exists — renaming onto an existing different entity is a hard error, by
-  design; merging two entities' thought/description history is out of scope.
+  design; merging two entities' thought/description history is out of scope. **Superseded in part by**
+  [`0014-entity-merge.md`](0014-entity-merge.md), which adds a separate `wet entity merge` command and
+  answers the questions left open below. Rename itself still errors on collision rather than merging.
 
 ## Alternatives considered
 
 - **Alias-preserving rewrite** (`[Sarah]` → `[Sarah](Sarah Smith)` instead of `[Sarah Smith]`) — considered
   and rejected: achieves the same "links stay valid" goal as the literal rewrite (since links are already
   ID-keyed and unaffected either way), but leaves stale-looking display text everywhere and adds
-  complexity for no additional benefit.
+  complexity for no additional benefit. (Entity *merge* makes the opposite call for its own rewrite, on
+  the grounds that the two names were never the same thing — see
+  [`0014-entity-merge.md`](0014-entity-merge.md).)
 - **Re-deriving `thought_entities` links from a fresh parse after rename** — not needed: links never
   become invalid in the first place, since they're ID-keyed, not name-keyed.
 - **Entity merge on rename collision** — rejected as out of scope; a merge has different, more complex
   semantics (whose description wins? do both entities' thought histories combine?) that weren't required
-  by this feature.
+  by this feature. Merge later shipped as its own command, keeping both descriptions and both histories —
+  see [`0014-entity-merge.md`](0014-entity-merge.md).
 
 ## Related code
 
