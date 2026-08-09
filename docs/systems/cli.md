@@ -17,7 +17,8 @@ together `models`, `services`, and `storage`.
 
 ## Non-scope
 
-The TUI, launched by `wet tui` but documented separately (see [`tui.md`](tui.md)); the underlying
+The TUI, launched by `wet tui`, and the composer, launched by `wet add -i`, both documented separately
+(see [`tui.md`](tui.md)); the underlying
 repository/service logic each command calls (see [`storage.md`](storage.md), [`services.md`](services.md)).
 
 ## Key concepts
@@ -31,7 +32,7 @@ Global `--color` flag (`ColorMode`, see [`services.md`](services.md)). Subcomman
 
 | Subcommand | Args | Purpose | Source |
 |---|---|---|---|
-| `add` | `content`, `--date` | Add a new thought | `cli/add.rs` |
+| `add` | `content?`, `--date`, `-i`/`--interactive` (conflicts w/ content) | Add a new thought; without `content`, opens the interactive composer | `cli/add.rs` |
 | `thoughts` | `--on <entity>` | List thoughts, optionally filtered | `cli/thoughts.rs` |
 | `edit` | `id`, `content?`, `--date`, `--editor` (conflicts w/ content) | Edit a thought | `cli/edit.rs` |
 | `delete` | `id` | Delete a thought | `cli/delete.rs` |
@@ -54,11 +55,20 @@ commands (see [`storage.md`](storage.md)).
 
 **Notable per-command detail:**
 
-- `add.rs` — parses `--date` (`NaiveDate` "%Y-%m-%d" → midnight UTC) if given, saves the thought, then
-  extracts entities via `entity_parser::extract_unique_entities` and resolves each via
-  `entity_resolution::resolve_or_create_entity` (registered aliases resolve to their entity; unresolved
-  names still `find_or_create`; ambiguous aliases skip linking with a warning — see
-  [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)) before linking.
+- `add.rs` — with a `content` argument, parses `--date` via `date_parser::parse_date` (→ midnight UTC) if
+  given, then delegates to `thought_writer::create_thought`, which saves the thought and links its
+  mentions in one transaction: `entity_parser::extract_unique_entities` followed by
+  `entity_resolution::resolve_or_create_entity` per name (registered aliases resolve to their entity;
+  unresolved names still `find_or_create`; ambiguous aliases skip linking with a warning — see
+  [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)).
+  Without a `content` argument it opens the interactive composer instead — see
+  [`flows/add-thought-interactive.md`](../flows/add-thought-interactive.md) and [`tui.md`](tui.md). The
+  composer needs a TTY; without one, `add.rs` returns an `InvalidInput` error naming the non-interactive
+  form rather than starting ratatui. Terminal setup/teardown (`ratatui::init` / `ratatui::restore`)
+  happens here, matching `tui.rs`.
+- Both `--date` flags (`add` and `edit`) accept the forms in `date_parser` — `YYYY-MM-DD`, `today`,
+  `yesterday`, `tomorrow`, offsets like `-3d`/`-2w`/`-1m`, and weekday names. They set
+  `allow_hyphen_values` so `--date -3d` parses as a value rather than an unknown flag.
 - `thoughts.rs` — repository always returns ascending order; the command reverses the list if
   `SortOrder::Descending`. `--on <entity>` filtering includes thoughts tagged on any entity transitively
   reachable from `<entity>` via child relations, not just `<entity>` itself (see

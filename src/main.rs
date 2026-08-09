@@ -46,7 +46,13 @@ fn main() {
         Commands::Config { key, value } => wetware::cli::config::execute(&data_dir, key, value),
         Commands::Delete { id } => wetware::cli::delete::execute(id, &db_path),
         Commands::Tui => wetware::cli::tui::execute(&db_path, config.thoughts.order),
-        Commands::Add { content, date } => wetware::cli::add::execute(content, date, &db_path),
+        // `interactive` only forces the composer when content is absent, which is
+        // already what an absent content argument means.
+        Commands::Add {
+            content,
+            date,
+            interactive: _,
+        } => wetware::cli::add::execute(content, date, &db_path),
         Commands::Edit {
             id,
             content,

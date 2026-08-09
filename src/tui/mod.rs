@@ -1,8 +1,11 @@
 //! TUI module for interactive thought viewer
 //!
 //! Provides an interactive terminal UI for browsing thoughts with entity
-//! highlighting, fuzzy entity filtering, sort toggling, and entity description popups.
+//! highlighting, fuzzy entity filtering, sort toggling, and entity description popups,
+//! plus the [`compose`] composer for entering new thoughts interactively.
 
+pub mod compose;
+pub mod fuzzy;
 pub mod input;
 pub mod state;
 pub mod ui;

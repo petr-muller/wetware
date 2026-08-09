@@ -2,11 +2,11 @@
 //!
 //! Maps keyboard events to state mutations based on the current interaction mode.
 
-use nucleo_matcher::{Matcher, pattern::Pattern};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tui_input::backend::crossterm::EventHandler;
 
 use super::App;
+use super::fuzzy;
 use super::state::Mode;
 
 /// Handle a key event and update app state.
@@ -164,32 +164,8 @@ fn handle_entity_picker_mode(app: &mut App, key: KeyEvent) {
             input.handle_event(&ratatui::crossterm::event::Event::Key(key));
 
             // Recompute fuzzy matches
-            let query = input.value();
-            if query.is_empty() {
-                *matches = (0..app.entities.len()).collect();
-            } else {
-                let mut matcher = Matcher::new(nucleo_matcher::Config::DEFAULT);
-                let pattern = Pattern::new(
-                    query,
-                    nucleo_matcher::pattern::CaseMatching::Ignore,
-                    nucleo_matcher::pattern::Normalization::Smart,
-                    nucleo_matcher::pattern::AtomKind::Fuzzy,
-                );
-
-                let mut scored: Vec<(usize, u32)> = app
-                    .entities
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, entity)| {
-                        let mut buf = Vec::new();
-                        let haystack = nucleo_matcher::Utf32Str::new(&entity.canonical_name, &mut buf);
-                        pattern.score(haystack, &mut matcher).map(|score| (i, score))
-                    })
-                    .collect();
-
-                scored.sort_by(|a, b| b.1.cmp(&a.1));
-                *matches = scored.into_iter().map(|(i, _)| i).collect();
-            }
+            let names: Vec<&str> = app.entities.iter().map(|e| e.canonical_name.as_str()).collect();
+            *matches = fuzzy::match_indices(input.value(), &names);
             *selected = 0;
         }
     }
@@ -356,6 +332,58 @@ mod tests {
         if let Mode::EntityPicker { matches, .. } = &app.mode {
             assert_eq!(matches.len(), 2); // All entities shown initially
         }
+    }
+
+    #[test]
+    fn test_entity_picker_typing_narrows_matches() {
+        let entities = vec![make_entity("Sarah"), make_entity("Project"), make_entity("Sam")];
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
+        handle_key_event(&mut app, key_event(KeyCode::Char('/')));
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('s')));
+
+        let Mode::EntityPicker { input, matches, .. } = &app.mode else {
+            panic!("expected the picker to stay open");
+        };
+        assert_eq!(input.value(), "s");
+        let matched: Vec<&str> = matches
+            .iter()
+            .map(|&i| app.entities[i].canonical_name.as_str())
+            .collect();
+        assert!(matched.contains(&"Sarah"), "{:?}", matched);
+        assert!(matched.contains(&"Sam"), "{:?}", matched);
+        assert!(!matched.contains(&"Project"), "{:?}", matched);
+    }
+
+    #[test]
+    fn test_entity_picker_backspace_widens_matches_again() {
+        let entities = vec![make_entity("Sarah"), make_entity("Project")];
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
+        handle_key_event(&mut app, key_event(KeyCode::Char('/')));
+        handle_key_event(&mut app, key_event(KeyCode::Char('s')));
+
+        handle_key_event(&mut app, key_event(KeyCode::Backspace));
+
+        let Mode::EntityPicker { input, matches, .. } = &app.mode else {
+            panic!("expected the picker to stay open");
+        };
+        assert_eq!(input.value(), "");
+        assert_eq!(matches.len(), 2, "an empty query offers every entity again");
+    }
+
+    #[test]
+    fn test_entity_picker_typing_resets_the_selection() {
+        let entities = vec![make_entity("Sarah"), make_entity("Sam")];
+        let mut app = App::new(vec![], entities, SortOrder::Ascending);
+        handle_key_event(&mut app, key_event(KeyCode::Char('/')));
+        handle_key_event(&mut app, key_event(KeyCode::Down));
+
+        handle_key_event(&mut app, key_event(KeyCode::Char('s')));
+
+        let Mode::EntityPicker { selected, .. } = &app.mode else {
+            panic!("expected the picker to stay open");
+        };
+        assert_eq!(*selected, 0, "a new query must not keep a stale highlight");
     }
 
     #[test]

@@ -24,6 +24,9 @@ toml = "1.1"
 ratatui = "0.30"
 tui-input = "0.15"
 nucleo-matcher = "0.3"
+# Already in the tree via ratatui; direct so the composer can wrap by display
+# width rather than character count.
+unicode-width = "0.2"
 
 [dev-dependencies]
 tempfile = "3.27"

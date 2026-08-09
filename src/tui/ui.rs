@@ -75,8 +75,11 @@ fn entity_color(entity: &str) -> Color {
     ansi_to_ratatui_color(ENTITY_COLORS[entity_color_index(entity)])
 }
 
-/// Build a styled Line from thought content, highlighting entity references.
-fn styled_content_line(content: &str, max_width: usize) -> Line<'static> {
+/// Split spans into the styled parts of `content`, highlighting entity references.
+///
+/// Entity references render as just their display text (the `[`, `]`, and any
+/// `(target)` are dropped), colored per [`entity_color`] and bolded.
+fn styled_spans(content: &str) -> Vec<Span<'static>> {
     let mut spans: Vec<Span<'static>> = Vec::new();
     let mut last_end = 0;
 
@@ -105,40 +108,32 @@ fn styled_content_line(content: &str, max_width: usize) -> Line<'static> {
         spans.push(Span::raw(content[last_end..].to_string()));
     }
 
-    // Truncate if needed
-    let line = Line::from(spans);
-    let total_width: usize = line.spans.iter().map(|s| s.content.len()).sum();
+    spans
+}
+
+/// Truncate a string to at most `max_chars` characters, respecting char boundaries.
+fn truncate_chars(text: &str, max_chars: usize) -> String {
+    match text.char_indices().nth(max_chars) {
+        Some((byte_idx, _)) => text[..byte_idx].to_string(),
+        None => text.to_string(),
+    }
+}
+
+/// Build a styled Line from thought content, highlighting entity references.
+///
+/// Shared with the interactive composer's live preview.
+pub(crate) fn styled_content_line(content: &str, max_width: usize) -> Line<'static> {
+    let spans = styled_spans(content);
+
+    // Truncate if needed. Widths are counted in characters, and slicing goes
+    // through `truncate_chars`, so multibyte content can never split a char.
+    let total_width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
     if total_width > max_width && max_width > 3 {
-        // Rebuild with truncation — simplified approach: just use raw truncated string
-        let truncated = if content.len() > max_width - 1 {
-            format!("{}...", &content[..max_width.saturating_sub(3)])
-        } else {
-            content.to_string()
-        };
-        // Re-render the truncated content with styling
-        let mut spans2: Vec<Span<'static>> = Vec::new();
-        let mut last_end2 = 0;
-        for cap in ENTITY_PATTERN.captures_iter(&truncated) {
-            let full_match = cap.get(0).unwrap();
-            let display_text = cap[1].trim();
-            let target_entity = cap.get(2).map(|m| m.as_str().trim()).unwrap_or(display_text);
-            if full_match.start() > last_end2 {
-                spans2.push(Span::raw(truncated[last_end2..full_match.start()].to_string()));
-            }
-            let color = entity_color(target_entity);
-            spans2.push(Span::styled(
-                display_text.to_string(),
-                Style::default().fg(color).add_modifier(Modifier::BOLD),
-            ));
-            last_end2 = full_match.end();
-        }
-        if last_end2 < truncated.len() {
-            spans2.push(Span::raw(truncated[last_end2..].to_string()));
-        }
-        return Line::from(spans2);
+        let truncated = format!("{}...", truncate_chars(content, max_width - 3));
+        return Line::from(styled_spans(&truncated));
     }
 
-    line
+    Line::from(spans)
 }
 
 /// Render the full TUI frame.
@@ -507,6 +502,35 @@ mod tests {
         assert_eq!(line.spans[2].content, " world");
         // Entity span should be bold
         assert!(line.spans[1].style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn test_styled_content_line_truncates_long_content() {
+        let line = styled_content_line("aaaaaaaaaaaaaaaaaaaaaaaaa", 10);
+
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.ends_with("..."), "{:?}", text);
+        assert!(text.chars().count() <= 10, "{:?}", text);
+    }
+
+    #[test]
+    fn test_styled_content_line_truncation_keeps_entity_styling() {
+        let line = styled_content_line("[Sarah] and a great deal of trailing text here", 12);
+
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.starts_with("Sarah"), "{:?}", text);
+        assert!(line.spans.iter().any(|s| s.style.fg.is_some()));
+    }
+
+    #[test]
+    fn test_styled_content_line_truncates_on_a_char_boundary() {
+        // Every char is multibyte, so a byte-index slice at the cut point would
+        // panic. Exercises each width around the boundary to catch off-by-ones.
+        for max_width in 4..14 {
+            let line = styled_content_line("ěščřžýáíéůúňť", max_width);
+            let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+            assert!(!text.is_empty(), "width {}", max_width);
+        }
     }
 
     #[test]

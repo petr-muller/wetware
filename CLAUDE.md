@@ -56,6 +56,7 @@ Domain model must not depend on CLI or persistence. Persistence is behind reposi
 - thiserror 2.0 (error types), owo-colors 4 (terminal styling), terminal_size 0.4 (TTY detection)
 - tempfile 3.27 (editor temp files), dirs 6.0 (XDG data directory), serde 1 + toml 0.8 (config)
 - ratatui 0.30 + crossterm (TUI framework), tui-input 0.15 (text input), nucleo-matcher 0.3 (fuzzy search)
+- unicode-width 0.2 (display-width word wrapping in the composer; already in the tree via ratatui)
 
 ## Data Directory
 

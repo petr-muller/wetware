@@ -4,9 +4,10 @@ A simple CLI tool for managing networked notes with entity references.
 
 ## Features
 
-- Add quick notes via command line
+- Add quick notes via command line, or interactively with entity completion and syntax help
 - Edit existing thoughts: correct content, update date, or both
 - Reference entities using `[entity-name]` or `[alias](entity-name)` syntax
+- Relative dates everywhere a date is accepted: `today`, `yesterday`, `-3d`, `mon`
 - Filter notes by entity
 - Case-insensitive entity matching with first-occurrence capitalization
 - Add multi-paragraph descriptions to entities
@@ -29,6 +30,42 @@ The binary will be available at `target/release/wetware`.
 ```bash
 wet add "Meeting with [Sarah] about [project-alpha]"
 ```
+
+Backdate it with `--date`, which accepts `YYYY-MM-DD` as well as `today`, `yesterday`, `tomorrow`,
+offsets like `-3d` / `-2w` / `-1m`, and weekday names:
+
+```bash
+wet add "Retro notes on [project-alpha]" --date yesterday
+```
+
+### Add a note interactively
+
+Run `wet add` with no text (or `wet add -i`) to open the composer:
+
+```bash
+wet add -i
+```
+
+It gives you a date field that shows what your input resolves to as you type, and a thought field where
+typing `[` opens a fuzzy search over the entities you already have — including their aliases. Pick one
+and it inserts `[Name]`, or `[alias](Name)` if you chose an alias.
+
+To link some wording of your own to an entity, type the wording, then `](` — the search reopens on the
+link target and fills in just the entity name:
+
+```
+met [my boss](      →  search reopens  →  met [my boss](Alice)
+```
+
+A live preview shows how the thought will read, and flags any mention that would create a brand-new
+entity, so typos don't quietly become duplicates. You can still type any name you like; nothing forces
+you to pick from the list.
+
+`Alt+←` and `Alt+→` shift the date a day earlier or later without leaving the thought field, so
+backdating something to yesterday doesn't cost a trip to the date field and back.
+
+`Tab` switches fields (and accepts a completion when the popup is open), `Enter` saves and clears the
+thought field so you can keep going, and `Esc` exits.
 
 ### Edit an existing thought
 

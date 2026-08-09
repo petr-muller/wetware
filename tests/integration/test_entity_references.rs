@@ -91,7 +91,7 @@ fn test_add_command_extracts_entities() {
 
     // Add a thought with entities
     let result = add::execute(
-        "Discussed [project-alpha] with [Sarah] and [John]".to_string(),
+        Some("Discussed [project-alpha] with [Sarah] and [John]".to_string()),
         None,
         &db_path,
     );
@@ -114,7 +114,7 @@ fn test_add_command_no_entities() {
     let db_path = temp_dir.path().join("test.db");
 
     // Add a thought without entities
-    let result = add::execute("Regular thought without entities".to_string(), None, &db_path);
+    let result = add::execute(Some("Regular thought without entities".to_string()), None, &db_path);
     assert!(result.is_ok());
 
     // Verify no entities were created
@@ -264,7 +264,7 @@ fn test_add_command_bracket_mention_resolves_to_aliased_entity() {
     EntityAliasesRepository::add_alias(&conn, sarah_id, "sar").unwrap();
     drop(conn);
 
-    let result = add::execute("Talked to [sar] again".to_string(), None, &db_path);
+    let result = add::execute(Some("Talked to [sar] again".to_string()), None, &db_path);
     assert!(result.is_ok());
 
     let conn = wetware::storage::connection::get_connection(&db_path).unwrap();
@@ -295,7 +295,7 @@ fn test_add_command_ambiguous_alias_mention_skips_link_but_saves_thought() {
     drop(conn);
 
     // The whole add still succeeds even though "boss" is ambiguous.
-    let result = add::execute("Mentioned [boss] today".to_string(), None, &db_path);
+    let result = add::execute(Some("Mentioned [boss] today".to_string()), None, &db_path);
     assert!(result.is_ok());
 
     let conn = wetware::storage::connection::get_connection(&db_path).unwrap();

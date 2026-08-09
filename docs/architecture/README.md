@@ -113,6 +113,7 @@ order they were made:
 | [0012](decisions/0012-entity-relations.md) | Directed entity parent/child relations (DAG) with recursive-CTE reachability |
 | [0013](decisions/0013-entity-aliases.md) | Persisted per-entity alias registry with canonical-name precedence |
 | [0014](decisions/0014-entity-merge.md) | `wet entity merge`, wording-preserving reference redirect, both histories kept |
+| [0015](decisions/0015-interactive-thought-composer.md) | `wet add -i` composer with entity whisperer, shared relative-date parsing |
 
 Only ADRs with `status: Accepted` reflect current guidance — see each ADR's frontmatter.
 

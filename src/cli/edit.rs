@@ -1,12 +1,11 @@
 /// Edit command implementation
 use crate::errors::ThoughtError;
 use crate::input::editor;
-use crate::services::{entity_parser, entity_resolution};
+use crate::services::{date_parser, entity_parser, entity_resolution};
 use crate::storage::connection::get_connection;
 use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
 use crate::storage::thoughts_repository::ThoughtsRepository;
-use chrono::NaiveDate;
 use std::path::Path;
 
 /// Execute the edit command
@@ -18,7 +17,7 @@ use std::path::Path;
 /// # Arguments
 /// * `id` - Numeric ID of the thought to edit (shown as `[id]` in `wet` listing)
 /// * `content` - Optional new text content for the thought
-/// * `date` - Optional new date string in YYYY-MM-DD format
+/// * `date` - Optional new date string; see [`date_parser`] for the accepted forms
 /// * `use_editor` - If true, open the thought's current content in an interactive editor
 /// * `db_path` - Optional path to the SQLite database file
 pub fn execute(
@@ -75,9 +74,7 @@ pub fn execute(
 
     // Parse new date if provided
     let new_date = if let Some(ref date_str) = date {
-        let naive = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-            ThoughtError::InvalidInput(format!("Invalid date format '{}'. Expected YYYY-MM-DD.", date_str))
-        })?;
+        let naive = date_parser::parse_date(date_str)?;
         Some(naive.and_hms_opt(0, 0, 0).unwrap().and_utc())
     } else {
         None

@@ -3,21 +3,23 @@
 ## Purpose
 
 Pure business-logic helpers with no I/O or persistence dependencies — entity-reference parsing, entity
-color styling, description-preview formatting, and terminal color-mode detection — plus one small
-DB-touching helper, `entity_resolution`, that ties `[bracket]` mention extraction to the persisted alias
-registry. Reused by both the CLI and the TUI.
+color styling, description-preview formatting, date parsing, and terminal color-mode detection — plus two
+DB-touching helpers: `entity_resolution`, which ties `[bracket]` mention extraction to the persisted alias
+registry, and `thought_writer`, which persists a new thought and its links. Reused by both the CLI and the
+TUI.
 
 ## Questions this doc answers
 
 - What syntax does an entity reference use, and how is it parsed?
 - How are entities colored/styled in output?
 - How are entity description previews generated?
+- What date formats are accepted, and where is that decided?
 - How is color output enabled/disabled?
 
 ## Scope
 
-`src/services/color_mode.rs`, `entity_parser.rs`, `entity_styler.rs`, `description_formatter.rs`,
-`entity_resolution.rs`.
+`src/services/color_mode.rs`, `date_parser.rs`, `entity_parser.rs`, `entity_styler.rs`,
+`description_formatter.rs`, `entity_resolution.rs`, `thought_writer.rs`.
 
 ## Non-scope
 
@@ -71,6 +73,33 @@ creating a brand-new literal entity when nothing matches. If `name` is an alias 
 one entity, it prints a warning to stderr and returns `Ok(None)` — the mention is skipped (not linked to
 any entity, no new entity created) without failing the caller's overall command. See
 [`../flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md).
+
+`resolve_entity(conn, name) -> Result<Resolution, ThoughtError>` is the same logic without the printing:
+it returns `Resolution::Ambiguous(AmbiguousMention)` for the caller to render. `resolve_or_create_entity`
+is now a thin wrapper over it. **Anything that owns the terminal must use `resolve_entity`** — the
+composer holds the tty in raw mode on the alternate screen, and an `eprintln!` there lands mid-frame with
+no carriage return, which ratatui's diff-based redraw then leaves smeared for the rest of the session.
+`AmbiguousMention::describe()` gives both paths identical wording.
+
+**`thought_writer.rs`** — `create_thought(conn, content, date) -> Result<Created, ThoughtError>`,
+the other storage-touching function here. Builds and validates a `Thought` (`date` of `None` timestamps it
+with the current instant, `Some(date)` pins it to midnight UTC), then saves it and links each extracted
+mention via `entity_resolution::resolve_entity` — all inside one transaction, so a failure part
+way through leaves no orphan thought behind. Shared by `wet add` and the interactive composer, which is why
+both cannot drift apart on what "adding a thought" means. Returns a `Created { id, entities, ambiguous }`: the new ID, the unique entity
+names extracted from the content, and any mentions left unlinked because their alias was ambiguous.
+Ambiguity is *returned* rather than printed so a caller that owns the terminal can render it itself —
+see `entity_resolution` below.
+
+**`date_parser.rs`** — `parse_date_from(input, today)` / `parse_date(input)`, the single definition of
+what a date may look like anywhere in the app. Accepts, case-insensitively and trimmed: `YYYY-MM-DD`;
+`today`/`t`, `yesterday`/`y`, `tomorrow`; signed offsets `-3d`, `-2w`, `-1m` (a leading `+` or no sign
+moves forward); and weekday names in full or three-letter form, resolving to the most recent occurrence
+at or before `today`. Month arithmetic clamps to the end of a shorter month, so `-1m` from March 31 is
+the last day of February. Anything else is an `InvalidInput` naming the accepted forms, which are also
+exported as `ACCEPTED_FORMS` for the composer's inline hint. `parse_date_from` takes `today` explicitly so
+the behavior is testable without freezing the clock. Used by `wet add --date`, `wet edit --date`, and the
+composer's date field.
 
 **`entity_styler.rs`** — `EntityStyler { color_map, next_color, use_colors }`. Cycles through a 12-color
 palette (excluding black/white). `EntityStyler::new(use_colors)`, `render_content(&mut self, content) ->
@@ -155,11 +184,15 @@ bare references, nested-looking brackets) and the preview pipeline's truncation 
 - [`src/services/entity_styler.rs`](../../src/services/entity_styler.rs)
 - [`src/services/description_formatter.rs`](../../src/services/description_formatter.rs)
 - [`src/services/color_mode.rs`](../../src/services/color_mode.rs)
+- [`src/services/date_parser.rs`](../../src/services/date_parser.rs)
+- [`src/services/entity_resolution.rs`](../../src/services/entity_resolution.rs)
+- [`src/services/thought_writer.rs`](../../src/services/thought_writer.rs)
 
 ## Related docs
 
 - [`cli.md`](cli.md), [`tui.md`](tui.md) — consumers.
 - [`flows/entity-rename.md`](../flows/entity-rename.md)
+- [`flows/add-thought-interactive.md`](../flows/add-thought-interactive.md)
 - [Glossary: Entity Reference, Alias, Color Mode, Description Preview](../glossary.md)
 - [`flows/entity-alias-resolution.md`](../flows/entity-alias-resolution.md)
 - [`../architecture/decisions/0013-entity-aliases.md`](../architecture/decisions/0013-entity-aliases.md)

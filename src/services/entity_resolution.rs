@@ -20,20 +20,71 @@ use rusqlite::Connection;
 ///   overall add/edit operation, mirroring how a failed editor launch is a warning
 ///   rather than a hard error elsewhere in the CLI.
 pub fn resolve_or_create_entity(conn: &Connection, name: &str) -> Result<Option<i64>, ThoughtError> {
-    match EntitiesRepository::resolve(conn, name) {
-        Ok(Some(entity)) => Ok(entity.id),
-        Ok(None) => {
-            let entity = Entity::new(name.to_string());
-            Ok(Some(EntitiesRepository::find_or_create(conn, &entity)?))
-        }
-        Err(ThoughtError::AmbiguousAlias { alias, entities }) => {
-            eprintln!(
-                "Warning: '{}' matches multiple entities ({}); skipping link for this mention.",
-                alias,
-                entities.join(", ")
-            );
+    match resolve_entity(conn, name)? {
+        Resolution::Entity(id) => Ok(Some(id)),
+        Resolution::Ambiguous(ambiguous) => {
+            eprintln!("Warning: {}", ambiguous.describe());
             Ok(None)
         }
+    }
+}
+
+/// A mention that could not be linked because its alias is registered to more
+/// than one entity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AmbiguousMention {
+    /// The alias as written in the mention
+    pub alias: String,
+    /// Canonical names of every entity the alias could mean
+    pub candidates: Vec<String>,
+}
+
+impl AmbiguousMention {
+    /// One-line explanation, so every caller words this identically.
+    pub fn describe(&self) -> String {
+        format!(
+            "'{}' matches multiple entities ({}); skipping link for this mention.",
+            self.alias,
+            self.candidates.join(", ")
+        )
+    }
+}
+
+/// Outcome of resolving a single `[bracket]` mention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Resolution {
+    /// Resolved (or created) to this entity ID
+    Entity(i64),
+    /// Left unlinked because the alias is ambiguous
+    Ambiguous(AmbiguousMention),
+}
+
+/// Resolve `name` to an entity ID, creating one if nothing matches, and *report*
+/// an ambiguous alias rather than printing about it.
+///
+/// [`resolve_or_create_entity`] is the plain-CLI wrapper that prints the warning
+/// to stderr. Callers that own the terminal — the interactive composer holds it in
+/// raw mode on the alternate screen — must use this instead: writing to stderr
+/// there lands on the same tty as the rendered frame and smears it, and because
+/// ratatui only redraws diffs the smear persists for the rest of the session.
+pub fn resolve_entity(conn: &Connection, name: &str) -> Result<Resolution, ThoughtError> {
+    match EntitiesRepository::resolve(conn, name) {
+        Ok(Some(entity)) => {
+            let id = match entity.id {
+                Some(id) => id,
+                // A resolved entity always has an ID; recreate rather than panic.
+                None => EntitiesRepository::find_or_create(conn, &entity)?,
+            };
+            Ok(Resolution::Entity(id))
+        }
+        Ok(None) => {
+            let entity = Entity::new(name.to_string());
+            Ok(Resolution::Entity(EntitiesRepository::find_or_create(conn, &entity)?))
+        }
+        Err(ThoughtError::AmbiguousAlias { alias, entities }) => Ok(Resolution::Ambiguous(AmbiguousMention {
+            alias,
+            candidates: entities,
+        })),
         Err(other) => Err(other),
     }
 }

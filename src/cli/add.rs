@@ -1,55 +1,81 @@
 /// Add command implementation
 use crate::errors::ThoughtError;
-use crate::models::thought::Thought;
-use crate::services::{entity_parser, entity_resolution};
+use crate::services::{date_parser, thought_writer};
 use crate::storage::connection::get_connection;
-use crate::storage::entities_repository::EntitiesRepository;
 use crate::storage::migrations::run_migrations;
-use crate::storage::thoughts_repository::ThoughtsRepository;
-use chrono::NaiveDate;
+use crate::tui::compose::ComposeApp;
+use std::io::IsTerminal;
 use std::path::Path;
 
 /// Execute the add command
-pub fn execute(content: String, date: Option<String>, db_path: &Path) -> Result<(), ThoughtError> {
-    // Create and validate thought
-    let thought = if let Some(ref date_str) = date {
-        let naive = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-            ThoughtError::InvalidInput(format!("Invalid date format '{}'. Expected YYYY-MM-DD.", date_str))
-        })?;
-        let datetime = naive.and_hms_opt(0, 0, 0).unwrap().and_utc();
-        Thought::new_with_date(content.clone(), datetime)?
-    } else {
-        Thought::new(content.clone())?
-    };
+///
+/// With `content`, saves the thought directly. Without it, opens the interactive
+/// composer, which offers entity completion, relative-date help, and a live preview.
+///
+/// # Arguments
+/// * `content` - Text of the thought, including any `[Entity]` mentions; `None` composes interactively
+/// * `date` - Optional date string; see [`date_parser`] for the accepted forms
+/// * `db_path` - Path to the SQLite database file
+pub fn execute(content: Option<String>, date: Option<String>, db_path: &Path) -> Result<(), ThoughtError> {
+    match content {
+        Some(content) => add_directly(content, date, db_path),
+        None => compose_interactively(date, db_path),
+    }
+}
 
-    // Get database connection
-    let conn = get_connection(db_path)?;
+/// Save a thought supplied on the command line.
+fn add_directly(content: String, date: Option<String>, db_path: &Path) -> Result<(), ThoughtError> {
+    let date = date.as_deref().map(date_parser::parse_date).transpose()?;
 
-    // Run migrations if needed
+    let mut conn = get_connection(db_path)?;
     run_migrations(&conn)?;
 
-    // Save thought
-    let thought_id = ThoughtsRepository::save(&conn, &thought)?;
+    let created = thought_writer::create_thought(&mut conn, &content, date)?;
 
-    // Extract and save entities
-    let entity_names = entity_parser::extract_unique_entities(&content);
-    for entity_name in &entity_names {
-        if let Some(entity_id) = entity_resolution::resolve_or_create_entity(&conn, entity_name)? {
-            EntitiesRepository::link_to_thought(&conn, entity_id, thought_id)?;
-        }
+    // Ambiguous mentions are reported, not linked; warn but do not fail.
+    for ambiguous in &created.ambiguous {
+        eprintln!("Warning: {}", ambiguous.describe());
     }
 
     // Success message with entity count
-    if entity_names.is_empty() {
-        println!("Thought added successfully (ID: {})", thought_id);
+    if created.entities.is_empty() {
+        println!("Thought added successfully (ID: {})", created.id);
     } else {
         println!(
             "Thought added successfully (ID: {}, {} entity reference{})",
-            thought_id,
-            entity_names.len(),
-            if entity_names.len() == 1 { "" } else { "s" }
+            created.id,
+            created.entities.len(),
+            if created.entities.len() == 1 { "" } else { "s" }
         );
     }
 
     Ok(())
+}
+
+/// Open the interactive composer, restoring the terminal however it exits.
+fn compose_interactively(date: Option<String>, db_path: &Path) -> Result<(), ThoughtError> {
+    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        return Err(ThoughtError::InvalidInput(
+            "The interactive composer needs a terminal. Pass the thought as an argument instead: wet add \"...\"."
+                .to_string(),
+        ));
+    }
+
+    let conn = get_connection(db_path)?;
+    run_migrations(&conn)?;
+    let mut app = ComposeApp::new(conn, date)?;
+
+    let mut terminal = ratatui::init();
+    let result = app.run(&mut terminal);
+    ratatui::restore();
+
+    // Report the count before propagating: those saves are already committed, and
+    // a terminal error must not leave the user unsure whether their work landed.
+    match app.saved_count {
+        0 => println!("No thoughts added."),
+        1 => println!("1 thought added."),
+        n => println!("{} thoughts added.", n),
+    }
+
+    result
 }
